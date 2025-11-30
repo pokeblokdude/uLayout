@@ -27,6 +27,7 @@ namespace Poke.UI {
         [SerializeField] private SizingMode m_sizingX = SizingMode.FitContent;
         [SerializeField] private SizingMode m_sizingY = SizingMode.FitContent;
         [SerializeField, Min(0)] private float m_maxWidth;
+        [SerializeField, Min(0)] private float m_maxFontSize;
         
         private RectTransform _rect;
         private RectTransform _parent;
@@ -52,7 +53,10 @@ namespace Poke.UI {
                 _rectTracker.Add(this, _rect, DrivenTransformProperties.SizeDeltaX);
             if(m_sizingY != SizingMode.None)
                 _rectTracker.Add(this, _rect, DrivenTransformProperties.SizeDeltaY);
-            
+
+            if(m_maxFontSize > 0) {
+                _text.fontSizeMax = m_maxFontSize;
+            }
             Vector2 size = _text.GetPreferredValues(_text.text);
             
             // X Pass
@@ -63,7 +67,7 @@ namespace Poke.UI {
                 }
             }
             if(m_sizingX != SizingMode.None) {
-                _rect.sizeDelta = _rect.sizeDelta.With(x: size.x);
+                _rect.sizeDelta = m_maxWidth > 0 ? _rect.sizeDelta.With(x: Mathf.Min(size.x, m_maxWidth)) : _rect.sizeDelta.With(size.x);
             }
             
             // Y Pass
@@ -84,5 +88,4 @@ namespace Poke.UI {
             }
         }
     }
-    
 }

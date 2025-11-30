@@ -1,0 +1,19 @@
+{
+    "name": "Poke.uLayout.Editor",
+    "rootNamespace": "Poke.UI",
+    "references": [
+        "GUID:a086f2f33537541d1b1e8cde513be9e4",
+        "GUID:6088dd3babaccab498987d4e38a1cccc"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [
+        "UNITY_EDITOR"
+    ],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

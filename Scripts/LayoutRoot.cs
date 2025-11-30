@@ -26,6 +26,10 @@ namespace Poke.UI
     {
         private readonly SortedBucket<Layout, int, Layout> _layouts = new (l => l, l => l.GetInstanceID());
 
+        private void Start() {
+            LateUpdate();
+        }
+
         public void LateUpdate() {
             // sizing pass (0)
             foreach(Layout l in _layouts) {
@@ -36,6 +40,10 @@ namespace Poke.UI
             foreach(Layout l in _layouts) {
                 l.ComputeLayout();
             }
+        }
+
+        public void ForceUpdate() {
+            LateUpdate();
         }
 
         public void RegisterLayout(Layout layout) {
