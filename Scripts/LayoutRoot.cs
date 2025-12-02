@@ -14,6 +14,7 @@
     You should have received a copy of the GNU General Public License
     along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
+using System.Collections.Generic;
 using UnityEngine;
 
 namespace Poke.UI
@@ -24,21 +25,54 @@ namespace Poke.UI
     ]
     public class LayoutRoot : MonoBehaviour
     {
+        [SerializeField] private int m_tickRate = 60;
+        
         private readonly SortedBucket<Layout, int, Layout> _layouts = new (l => l, l => l.GetInstanceID());
+        private readonly Stack<Layout> _reverse = new ();
+        private float _tickInterval;
+        private float _lastTickTimestamp;
+        private bool _tick;
+        
+        private void Awake() {
+            _tickInterval = 1.0f / m_tickRate;
+        }
 
         private void Start() {
+            _tick = true;
             LateUpdate();
         }
 
-        public void LateUpdate() {
-            // sizing pass (0)
-            foreach(Layout l in _layouts) {
-                l.ComputeSize();
+        public void Update() {
+            if(Time.time - _lastTickTimestamp >= _tickInterval) {
+                _tick = true;
             }
+        }
 
-            // layout pass (1)
-            foreach(Layout l in _layouts) {
-                l.ComputeLayout();
+        public void LateUpdate() {
+            if(_tick) {
+                _reverse.Clear();
+                
+                // fit sizing pass (0)
+                Debug.Log("[Root] Fit Size Pass");
+                foreach(Layout l in _layouts) {
+                    l.ComputeFitSize();
+                    _reverse.Push(l);
+                }
+
+                // grow sizing pass (1)
+                Debug.Log("[Root] Grow Size Pass");
+                foreach(Layout l in _reverse) {
+                    l.ComputeGrowSize();
+                }
+                
+                // layout pass (2)
+                Debug.Log("[Root] Layout Pass");
+                foreach(Layout l in _reverse) {
+                    l.ComputeLayout();
+                }
+
+                _lastTickTimestamp = Time.time;
+                _tick = false;
             }
         }
 

@@ -46,12 +46,12 @@ namespace Poke.UI {
         }
 
         public void Update() {
-            _text.textWrappingMode = m_sizingX == SizingMode.Inherit ? TextWrappingModes.Normal : TextWrappingModes.NoWrap;
+            _text.textWrappingMode = m_sizingX == SizingMode.Grow ? TextWrappingModes.Normal : TextWrappingModes.NoWrap;
             
             _rectTracker.Clear();
-            if(m_sizingX != SizingMode.None)
+            if(m_sizingX != SizingMode.Fixed)
                 _rectTracker.Add(this, _rect, DrivenTransformProperties.SizeDeltaX);
-            if(m_sizingY != SizingMode.None)
+            if(m_sizingY != SizingMode.Fixed)
                 _rectTracker.Add(this, _rect, DrivenTransformProperties.SizeDeltaY);
 
             if(m_maxFontSize > 0) {
@@ -60,18 +60,18 @@ namespace Poke.UI {
             Vector2 size = _text.GetPreferredValues(_text.text);
             
             // X Pass
-            if(m_sizingX == SizingMode.Inherit) {
+            if(m_sizingX == SizingMode.Grow) {
                 size.x = _parent.rect.size.x;
                 if(m_maxWidth > 0) {
                     size.x = Mathf.Min(size.x, m_maxWidth);
                 }
             }
-            if(m_sizingX != SizingMode.None) {
+            if(m_sizingX != SizingMode.Fixed) {
                 _rect.sizeDelta = m_maxWidth > 0 ? _rect.sizeDelta.With(x: Mathf.Min(size.x, m_maxWidth)) : _rect.sizeDelta.With(size.x);
             }
             
             // Y Pass
-            if(m_sizingY == SizingMode.Inherit) {
+            if(m_sizingY == SizingMode.Grow) {
                 size.y = _parent.rect.size.y;
             }
 
@@ -83,7 +83,7 @@ namespace Poke.UI {
                 }
                 size.y = height;
             }
-            if(m_sizingY != SizingMode.None) {
+            if(m_sizingY != SizingMode.Fixed) {
                 _rect.sizeDelta = _rect.sizeDelta.With(y: size.y);
             }
         }
