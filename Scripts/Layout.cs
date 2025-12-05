@@ -20,16 +20,9 @@ using UnityEngine;
 
 namespace Poke.UI
 {
-    [
-        ExecuteAlways,
-        RequireComponent(typeof(RectTransform))
-    ]
-    public class Layout : MonoBehaviour, IComparable<Layout>
+    public class Layout : LayoutItem, IComparable<Layout>
     {
-        [Header("Sizing")]
-        [SerializeField] private SizingModes m_sizingMode;
-        
-        [Header("Positioning")]
+        [Header("Layout")]
         [SerializeField] private Margins m_padding;
         [SerializeField] private LayoutDirection m_direction;
         [SerializeField] private Justification m_justifyContent;
@@ -38,11 +31,22 @@ namespace Poke.UI
 
         public int ChildCount => _children.Count;
         public int Depth => _depth;
+        public int GrowChildCount => _growChildren.Count;
         public LayoutDirection Direction => m_direction;
-        public SizingModes SizeMode => m_sizingMode;
 
         private readonly int MAX_DEPTH = 100;
-        
+
+        private readonly Vector3[] _rectCorners = new Vector3[4];
+        private DrivenRectTransformTracker _rectTracker;
+        private LayoutRoot _root;
+        private List<RectTransform> _children = new();
+        private Vector2 _contentSize;
+        private int _depth;
+        private bool _refreshCache;
+        private List<LayoutItem> _growChildren;
+        private Vector2Int _growChildCount;
+
+        #region TypeDef
         public enum Justification
         {
             Start,
@@ -65,34 +69,13 @@ namespace Poke.UI
             RowReverse,
             ColumnReverse
         }
-
-        [Serializable]
-        public struct SizingModes
-        {
-            public SizingMode x;
-            public SizingMode y;
-        }
-
-        private RectTransform _rect;
-        private readonly Vector3[] _rectCorners = new Vector3[4];
-        private DrivenRectTransformTracker _rectTracker;
-        private LayoutRoot _root;
-        private Layout _parent;
-        private RectTransform _parentRect;
-        private List<RectTransform> _children = new();
-        private Vector2 _contentSize;
-        private int _depth;
-        private bool _refreshCache;
-        private int _growChildren;
-
-        private void Awake() {
-            _rect = GetComponent<RectTransform>();
+        #endregion
+        
+        #region Layout MonoBehavior
+        protected override void Awake() {
+            base.Awake();
             _rectTracker = new DrivenRectTransformTracker();
-            _parentRect = transform.parent.GetComponent<RectTransform>();
-
-            if(_parentRect.TryGetComponent(out Layout l)) {
-                _parent = l;
-            }
+            _growChildren = new List<LayoutItem>();
             
             // find LayoutRoot
             _root = null;
@@ -119,16 +102,21 @@ namespace Poke.UI
             }
         }
 
-        private void OnEnable() {
+        protected override void OnEnable() {
+            base.OnEnable();
+            
             _root?.RegisterLayout(this);
             RefreshChildCache();
         }
 
-        private void OnDisable() {
+        protected override void OnDisable() {
+            base.OnDisable();
             _root?.UnregisterLayout(this);
         }
 
-        public void Update() {
+        public override void Update() {
+            base.Update();
+            
             // check if any children were added/removed this frame
             if(transform.childCount != _children.Count || _refreshCache) {
                 RefreshChildCache();
@@ -158,17 +146,19 @@ namespace Poke.UI
             
             LayoutUtil.DrawDebugBox(r, _rect.position.z, Color.green);
         }
-
+        #endregion
+        
         #region LAYOUT PASSES
         public void ComputeFitSize() {
-            _growChildren = 0;
+            _growChildren.Clear();
+            _growChildCount = new Vector2Int(0, 0);
             
             _rectTracker.Clear();
-            if(m_sizingMode.x == SizingMode.FitContent)
+            if(m_sizing.x == SizingMode.FitContent || (!_parent && m_sizing.x == SizingMode.Grow))
                 _rectTracker.Add(this, _rect, DrivenTransformProperties.SizeDeltaX);
-            if(m_sizingMode.y == SizingMode.FitContent)
+            if(m_sizing.y == SizingMode.FitContent || (!_parent && m_sizing.y == SizingMode.Grow))
                 _rectTracker.Add(this, _rect, DrivenTransformProperties.SizeDeltaY);
-
+            
             if(_children.Count > 0) {
                 float primarySize = m_innerSpacing * (_children.Count-1);
                 float crossSize = 0;
@@ -186,30 +176,31 @@ namespace Poke.UI
                         break;
                 }
 
-                Layout l = null;
+                LayoutItem li = null;
                 // calculate content size
                 float maxCrossSize = 0;
                 foreach(RectTransform rt in _children) {
                     bool growX = false, growY = false;
                     
-                    l = rt.GetComponent<Layout>();
-                    if(l != null) {
-                        growX = l.SizeMode.x == SizingMode.Grow;
-                        growY = l.SizeMode.y == SizingMode.Grow;
+                    li = rt.GetComponent<LayoutItem>();
+                    if(li != null) {
+                        growX = li.SizeMode.x == SizingMode.Grow;
+                        growY = li.SizeMode.y == SizingMode.Grow;
+                        if(growX || growY) {
+                            _growChildren.Add(li);
+                            _growChildCount.x += growX ? 1 : 0;
+                            _growChildCount.y += growY ? 1 : 0;
+                        }
                     }
                     
                     switch(m_direction) {
                         case LayoutDirection.Row:
                         case LayoutDirection.RowReverse:
-                            if(growX) _growChildren++;
-                            
                             primarySize += growX ? 0 : rt.sizeDelta.x;
                             maxCrossSize = Mathf.Max(maxCrossSize, growY ? 0 : rt.sizeDelta.y);
                             break;
                         case LayoutDirection.Column:
                         case LayoutDirection.ColumnReverse:
-                            if(growY) _growChildren++;
-                            
                             primarySize += growY ? 0 : rt.sizeDelta.y;
                             maxCrossSize = Mathf.Max(maxCrossSize, growX ? 0 : rt.sizeDelta.x);
                             break;
@@ -230,7 +221,7 @@ namespace Poke.UI
                 }
                 
                 // apply fit sizing X
-                if(m_sizingMode.x == SizingMode.FitContent) {
+                if(m_sizing.x == SizingMode.FitContent) {
                     switch(m_direction) {
                         case LayoutDirection.Row:
                         case LayoutDirection.RowReverse:
@@ -244,7 +235,7 @@ namespace Poke.UI
                 }
                 
                 // apply fit sizing Y
-                if(m_sizingMode.y == SizingMode.FitContent) {
+                if(m_sizing.y == SizingMode.FitContent) {
                     switch(m_direction) {
                         case LayoutDirection.Row:
                         case LayoutDirection.RowReverse:
@@ -262,70 +253,43 @@ namespace Poke.UI
             }
         }
 
-        public void ComputeGrowSize() {
-            bool grow = false;
-            if(m_sizingMode.x == SizingMode.Grow) {
-                grow = true;
-                _rectTracker.Add(this, _rect, DrivenTransformProperties.SizeDeltaX);
-                Debug.Log("[Layout] Apply SizeDeltaX RectTracker");
-            }
-
-            if(m_sizingMode.y == SizingMode.Grow) {
-                grow = true;
-                _rectTracker.Add(this, _rect, DrivenTransformProperties.SizeDeltaY);
-                Debug.Log("[Layout] Apply SizeDeltaY RectTracker");
-            }
-
-            if(grow) {
-                Vector2 parentSize;
-                
-                // parent is Layout
-                if(_parent != null) {
-                    Vector2 growSize = default;
-                    switch(_parent.m_direction) {
+        public void GrowChildren() {
+            if(_growChildren.Count > 0) {
+                foreach(LayoutItem li in _growChildren) {
+                    Vector2 size;
+                    float crossSize;
+                    float leftover;
+                    switch(m_direction) {
                         case LayoutDirection.Row:
                         case LayoutDirection.RowReverse:
-                            parentSize = _parentRect.rect.size - new Vector2(
-                                0,
-                                _parent.m_padding.bottom + _parent.m_padding.top
-                            );
-                            growSize = new Vector2((parentSize.x - _parent._contentSize.x) / _parent._growChildren, parentSize.y);
-
-                            _parent._contentSize.x += growSize.x;
+                            leftover = _rect.rect.size.x - _contentSize.x - m_padding.left - m_padding.right;
+                            crossSize = _rect.rect.size.y - m_padding.top - m_padding.bottom;
+                            size = new Vector2(leftover / _growChildCount.x, crossSize);
+                            
+                            if(li.SizeMode.x == SizingMode.Grow) {
+                                _rectTracker.Add(this, li.Rect, DrivenTransformProperties.SizeDeltaX);
+                                li.Rect.SetSizeWithCurrentAnchors(RectTransform.Axis.Horizontal, size.x);
+                            }
+                            if(li.SizeMode.y == SizingMode.Grow) {
+                                _rectTracker.Add(this, li.Rect, DrivenTransformProperties.SizeDeltaY);
+                                li.Rect.SetSizeWithCurrentAnchors(RectTransform.Axis.Vertical, size.y);
+                            }
                             break;
                         case LayoutDirection.Column:
                         case LayoutDirection.ColumnReverse:
-                            parentSize = _parentRect.rect.size - new Vector2(
-                                _parent.m_padding.left + _parent.m_padding.right,
-                                0
-                            );
-                            growSize = new Vector2(parentSize.x, (parentSize.y - _parent._contentSize.y) / _parent._growChildren);
-
-                            _parent._contentSize.y += growSize.y;
+                            leftover = _rect.rect.size.y - _contentSize.y - m_padding.top - m_padding.bottom;
+                            crossSize = _rect.rect.size.x - m_padding.left - m_padding.right;
+                            size = new Vector2(crossSize, leftover / _growChildCount.y);
+                            
+                            if(li.SizeMode.y == SizingMode.Grow) {
+                                _rectTracker.Add(this, li.Rect, DrivenTransformProperties.SizeDeltaY);
+                                li.Rect.SetSizeWithCurrentAnchors(RectTransform.Axis.Vertical, size.y);
+                            }
+                            if(li.SizeMode.x == SizingMode.Grow) {
+                                _rectTracker.Add(this, li.Rect, DrivenTransformProperties.SizeDeltaX);
+                                li.Rect.SetSizeWithCurrentAnchors(RectTransform.Axis.Horizontal, size.x);
+                            }
                             break;
-                    }
-                    
-                    if(m_sizingMode.x == SizingMode.Grow) {
-                        Debug.Log("grow x layout");
-                        _rect.SetSizeWithCurrentAnchors(RectTransform.Axis.Horizontal, growSize.x);
-                    }
-                    
-                    if(m_sizingMode.y == SizingMode.Grow) {
-                        Debug.Log("grow y layout");
-                        _rect.SetSizeWithCurrentAnchors(RectTransform.Axis.Vertical, growSize.y);
-                    }
-                }
-                // parent is *not* Layout
-                else {
-                    parentSize = _parentRect.rect.size;
-                    if(m_sizingMode.x == SizingMode.Grow) {
-                        Debug.Log("grow x no layout");
-                        _rect.SetSizeWithCurrentAnchors(RectTransform.Axis.Horizontal, parentSize.x);
-                    }
-                    
-                    if(m_sizingMode.y == SizingMode.Grow) {
-                        Debug.Log("grow y no layout");
-                        _rect.SetSizeWithCurrentAnchors(RectTransform.Axis.Vertical, parentSize.y);
                     }
                 }
             }
@@ -397,8 +361,7 @@ namespace Poke.UI
                             break;
                         case Justification.SpaceBetween:
                             primaryOffset += m_padding.left;
-                            
-                            leftover = _rect.sizeDelta.x - (m_padding.left + m_padding.right + _contentSize.x);
+                            leftover = _rect.rect.size.x - _contentSize.x;
                             
                             if(_children.Count > 1)
                                 spacing = leftover / (_children.Count-1);
@@ -409,10 +372,10 @@ namespace Poke.UI
                                 rt.pivot = rt.pivot.With(x: 0);
 
                                 if(index != 0) {
-                                    primaryOffset += m_padding.left / lastChildIndex + m_padding.right / lastChildIndex;
+                                    primaryOffset += spacing;
                                 }
                                 rt.anchoredPosition = rt.anchoredPosition.With(x: primaryOffset);
-                                primaryOffset += rt.sizeDelta.x + spacing;
+                                primaryOffset += rt.sizeDelta.x;
                                 index++;
                             }
                             break;
@@ -526,8 +489,7 @@ namespace Poke.UI
                             break;
                         case Justification.SpaceBetween:
                             primaryOffset += m_padding.top;
-                            
-                            leftover = _rect.sizeDelta.y - (m_padding.top + m_padding.bottom) - _contentSize.y;
+                            leftover = _rect.sizeDelta.y - _contentSize.y;
                             
                             if(_children.Count > 1)
                                 spacing = leftover / (_children.Count-1);
@@ -538,11 +500,10 @@ namespace Poke.UI
                                 rt.pivot = rt.pivot.With(y: 1);
                                 
                                 if(index != 0) {
-                                    primaryOffset += m_padding.top / lastChildIndex + m_padding.bottom / lastChildIndex;
+                                    primaryOffset += spacing;
                                 }
-                                
                                 rt.anchoredPosition = rt.anchoredPosition.With(y: -primaryOffset);
-                                primaryOffset += rt.sizeDelta.y + spacing;
+                                primaryOffset += rt.sizeDelta.y;
 
                                 index++;
                             }
@@ -712,12 +673,11 @@ namespace Poke.UI
         }
         
         public void RefreshChildCache() {
-            //Debug.Log("Refreshing child cache");
             _children.Clear();
             for(int i = 0; i < transform.childCount; i++) {
                 RectTransform rt = transform.GetChild(i).GetComponent<RectTransform>();
                 if(rt.gameObject.activeInHierarchy) {
-                    if(!rt.TryGetComponent(out IgnoreLayout ignore) || !ignore.enabled) {
+                    if(!(rt.TryGetComponent(out LayoutItem li) && li.IgnoreLayout)) {
                         _children.Add(rt);
                     }
                 }

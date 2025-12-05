@@ -53,20 +53,20 @@ namespace Poke.UI
                 _reverse.Clear();
                 
                 // fit sizing pass (0)
-                Debug.Log("[Root] Fit Size Pass");
+                //Debug.Log("[Root] Fit Size Pass");
                 foreach(Layout l in _layouts) {
                     l.ComputeFitSize();
                     _reverse.Push(l);
                 }
 
                 // grow sizing pass (1)
-                Debug.Log("[Root] Grow Size Pass");
-                foreach(Layout l in _reverse) {
-                    l.ComputeGrowSize();
+                //Debug.Log("[Root] Grow Size Pass");
+                foreach(Layout l in _layouts) {
+                    l.GrowChildren();
                 }
                 
                 // layout pass (2)
-                Debug.Log("[Root] Layout Pass");
+                //Debug.Log("[Root] Layout Pass");
                 foreach(Layout l in _reverse) {
                     l.ComputeLayout();
                 }
@@ -81,13 +81,13 @@ namespace Poke.UI
         }
 
         public void RegisterLayout(Layout layout) {
-            Debug.Log($"Registered \"{layout.name}\" at depth [{layout.Depth}]");
+            //Debug.Log($"Registered \"{layout.name}\" at depth [{layout.Depth}]");
             _layouts.Add(layout);
         }
 
         public void UnregisterLayout(Layout layout) {
             if(_layouts.Remove(layout)) {
-                Debug.Log($"Removed \"{layout.name}\"");
+                //Debug.Log($"Removed \"{layout.name}\"");
             }
             else {
                 Debug.LogError($"Failed to remove \"{layout.name}\" (not found)");

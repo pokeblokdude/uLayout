@@ -35,7 +35,10 @@ namespace Poke.UI
             base.OnInspectorGUI();
             
             EditorGUILayout.Space();
-            EditorGUILayout.HelpBox($"Tracking {_layout.ChildCount} layout elements.", MessageType.Info);
+            EditorGUILayout.HelpBox(
+                $"Tracking {_layout.ChildCount} layout elements." + (_layout.GrowChildCount > 0 ? $"\n({_layout.GrowChildCount} grow)" : ""),
+                MessageType.Info
+            );
             if(GUILayout.Button("Refresh Child Cache")) {
                 _layout.RefreshChildCache();
                 EditorApplication.QueuePlayerLoopUpdate();
