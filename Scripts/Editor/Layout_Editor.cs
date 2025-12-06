@@ -23,16 +23,35 @@ namespace Poke.UI
         CustomEditor(typeof(Layout)),
         CanEditMultipleObjects
     ]
-    public class Layout_Editor : Editor
+    public class Layout_Editor : LayoutItem_Editor
     {
         private Layout _layout;
+        private SerializedProperty _padding;
+        private SerializedProperty _direction;
+        private SerializedProperty _justifyContent;
+        private SerializedProperty _alignContent;
+        private SerializedProperty _innerSpacing;
         
-        private void Awake() {
+        protected override void Awake() {
+            base.Awake();
             _layout = target as Layout;
+
+            _padding = serializedObject.FindProperty("m_padding");
+            _direction = serializedObject.FindProperty("m_direction");
+            _justifyContent = serializedObject.FindProperty("m_justifyContent");
+            _alignContent = serializedObject.FindProperty("m_alignContent");
+            _innerSpacing = serializedObject.FindProperty("m_innerSpacing");
         }
 
         public override void OnInspectorGUI() {
             base.OnInspectorGUI();
+
+            EditorGUILayout.PropertyField(_padding);
+            EditorGUILayout.PropertyField(_direction);
+            EditorGUILayout.PropertyField(_justifyContent);
+            EditorGUILayout.PropertyField(_alignContent);
+            EditorGUILayout.PropertyField(_innerSpacing);
+            serializedObject.ApplyModifiedProperties();
             
             EditorGUILayout.Space();
             EditorGUILayout.HelpBox(
