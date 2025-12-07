@@ -13,6 +13,8 @@ uLayout can be installed from a `.unitypackage` file. Download the latest releas
 ## Setup
 uLayout requires there to be a `LayoutRoot` component at the top of the UI hierarchy. "Top" in this case is relative&mdash;as long as it's above every `Layout` object, you're good to go! There's also nothing stopping you from using multiple `LayoutRoot` objects in the same scene.
 
+uLayout components can be quickly added to your scene via `GameObject > UI > Layout` (or scene-view right-click menu).
+
 Functionality is split into two parts: sizing and positioning. These are calculated in separate passes, where sizing executes bottom-up on the hierarchy, while positioning runs top-down (there's actually a secret third pass for emulating `flex-grow` behavior but that's not super important to know).
 
 All layout elements can choose one of three `SizingMode` options for each axis:\
