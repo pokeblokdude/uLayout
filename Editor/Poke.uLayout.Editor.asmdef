@@ -5,10 +5,9 @@
         "Unity.TextMeshPro",
         "uLayout"
     ],
-    "includePlatforms": [],
-    "excludePlatforms": [
-        "Editor"
-    ],
+    "includePlatforms": [
+		"Editor"
+	],
     "allowUnsafeCode": false,
     "overrideReferences": false,
     "precompiledReferences": [],
