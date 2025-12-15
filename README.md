@@ -7,7 +7,8 @@ It's designed with performance in mind (layout children are cached between hiera
 ---
 
 ## Installation
-uLayout can be installed from a `.unitypackage` file. Download the latest release from the Releases tab.
+uLayout can be installed from the Unity Package Manager via git URL: `git@github.com:pokeblokdude/uLayout.git`\
+Alternatively, you can import directly into your project with a `.unitypackage` file, available in the Releases tab.
 
 ---
 
