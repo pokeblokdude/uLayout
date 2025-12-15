@@ -1,4 +1,10 @@
-﻿## [1.3] - 2025-12-15
+﻿## [1.3.1] - 2025-12-15
+
+### Changed
+- fixed UPM sample import
+- asmdef changes
+
+## [1.3] - 2025-12-15
 
 ### Changed
 - converted to UPM package format
