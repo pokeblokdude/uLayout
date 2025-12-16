@@ -43,6 +43,8 @@ namespace Poke.UI
         protected RectTransform _parentRect;
         protected Layout _parent;
 
+        private Vector2 _parentSize;
+
         [Serializable]
         public struct SizeModes
         {
@@ -53,6 +55,7 @@ namespace Poke.UI
         protected virtual void Awake() {
             _rect = GetComponent<RectTransform>();
             _parentRect = transform.parent.GetComponent<RectTransform>();
+            _parentSize = _parentRect.rect.size;
         }
 
         protected virtual void OnEnable() {
@@ -70,11 +73,17 @@ namespace Poke.UI
 
         public virtual void Update() {
             // Do grow sizing here if parent is not a Layout
-            if(!_parent && m_sizing.x == SizingMode.Grow) {
-                _rect.SetSizeWithCurrentAnchors(RectTransform.Axis.Horizontal, _parentRect.rect.size.x);
-            }
-            if(!_parent && m_sizing.y == SizingMode.Grow) {
-                _rect.SetSizeWithCurrentAnchors(RectTransform.Axis.Vertical, _parentRect.rect.size.y);
+            if(!_parent) {
+                // only update size if parent size has changed
+                if(m_sizing.x == SizingMode.Grow && !Mathf.Approximately(_parentRect.rect.size.x, _parentSize.x)) {
+                    _rect.SetSizeWithCurrentAnchors(RectTransform.Axis.Horizontal, _parentRect.rect.size.x);
+                    _parentSize = _parentSize.With(x: _parentRect.rect.size.x);
+                }
+                if(m_sizing.y == SizingMode.Grow && !Mathf.Approximately(_parentRect.rect.size.y, _parentSize.y)) {
+                    _rect.SetSizeWithCurrentAnchors(RectTransform.Axis.Vertical, _parentRect.rect.size.y);
+                    _parentSize = _parentSize.With(y: _parentRect.rect.size.y);
+                }
+                
             }
         }
     }

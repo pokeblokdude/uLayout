@@ -11,6 +11,8 @@
     The above copyright notice and this permission notice shall be included in all
     copies or substantial portions of the Software.
 */
+
+using System;
 using UnityEngine;
 
 namespace Poke.UI
@@ -46,9 +48,21 @@ namespace Poke.UI
     }
     
     [System.Serializable]
-    public struct Margins
+    public struct Margins : IEquatable<Margins>
     {
         public float top, bottom, left, right;
+
+        public bool Equals(Margins other) {
+            return top.Equals(other.top) && bottom.Equals(other.bottom) && left.Equals(other.left) && right.Equals(other.right);
+        }
+
+        public override bool Equals(object obj) {
+            return obj is Margins other && Equals(other);
+        }
+
+        public override int GetHashCode() {
+            return HashCode.Combine(top, bottom, left, right);
+        }
     }
     
     public enum SizingMode

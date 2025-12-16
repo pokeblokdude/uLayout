@@ -48,7 +48,11 @@ namespace Poke.UI
             EditorGUILayout.PropertyField(_justifyContent);
             EditorGUILayout.PropertyField(_alignContent);
             EditorGUILayout.PropertyField(_innerSpacing);
-            serializedObject.ApplyModifiedProperties();
+
+            if(serializedObject.hasModifiedProperties) {
+                _layout.SetDirty();
+                serializedObject.ApplyModifiedProperties();
+            }
             
             EditorGUILayout.Space();
             EditorGUILayout.HelpBox(

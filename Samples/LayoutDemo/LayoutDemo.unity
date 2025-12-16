@@ -4220,7 +4220,6 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: f4076dd0ba0db2e4bae7d4be32805d2a, type: 3}
   m_Name: 
   m_EditorClassIdentifier: uLayout::Poke.UI.LayoutRoot
-  m_tickRate: 60
 --- !u!114 &1221409043
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -6785,11 +6784,11 @@ RectTransform:
   - {fileID: 945188099}
   m_Father: {fileID: 1221409040}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
-  m_AnchorMin: {x: 0, y: 0}
-  m_AnchorMax: {x: 0, y: 0}
-  m_AnchoredPosition: {x: 0, y: 0}
-  m_SizeDelta: {x: 663.07, y: 0}
-  m_Pivot: {x: 0, y: 0}
+  m_AnchorMin: {x: 0, y: 1}
+  m_AnchorMax: {x: 0, y: 1}
+  m_AnchoredPosition: {x: 1192.9299, y: -64}
+  m_SizeDelta: {x: 0, y: 952.1925}
+  m_Pivot: {x: 0, y: 1}
 --- !u!114 &1892536863
 MonoBehaviour:
   m_ObjectHideFlags: 0

@@ -19,6 +19,14 @@ namespace Poke.UI
 {
     public class Layout : LayoutItem, IComparable<Layout>
     {
+        /* THINGS THAT CAN CAUSE A LAYOUT UPDATE
+            - non-grow child RectTransform changes size
+            - number of children change
+            - child is enabled/disabled
+            - this container changes
+        */
+        public event Action OnLayoutChanged;
+        
         [Header("Layout")]
         [SerializeField] private Margins m_padding;
         [SerializeField] private LayoutDirection m_direction;
@@ -30,18 +38,22 @@ namespace Poke.UI
         public int Depth => _depth;
         public int GrowChildCount => _growChildren.Count;
         public LayoutDirection Direction => m_direction;
+        public bool NeedsRefresh => _dirty;
 
         private readonly int MAX_DEPTH = 100;
 
         private readonly Vector3[] _rectCorners = new Vector3[4];
         private DrivenRectTransformTracker _rectTracker;
         private LayoutRoot _root;
-        private List<RectTransform> _children = new();
+        private Dictionary<RectTransform, ChildInfo> _children = new();
         private Vector2 _contentSize;
         private int _depth;
-        private bool _refreshCache;
+        private LayoutItem[] _layoutItems;
         private List<LayoutItem> _growChildren;
         private Vector2Int _growChildCount;
+        private bool _dirty;
+        
+        private Vector2 _lastSize;
 
         #region TypeDef
         public enum Justification
@@ -65,6 +77,14 @@ namespace Poke.UI
             Column,
             RowReverse,
             ColumnReverse
+        }
+
+        private class ChildInfo
+        {
+            public int index;
+            public Vector2 size;
+            public bool enabled;
+            public bool ignoreLayout;
         }
         #endregion
         
@@ -113,19 +133,58 @@ namespace Poke.UI
 
         public override void Update() {
             base.Update();
+            bool layoutChanged = _dirty;
             
+            // check if the container changed this frame
+            if(!Mathf.Approximately(_lastSize.x, _rect.rect.size.x) || !Mathf.Approximately(_lastSize.y, _rect.rect.size.y)) {
+                Debug.Log($"[{name}]: container size changed");
+                layoutChanged = true;
+            }
             // check if any children were added/removed this frame
-            if(transform.childCount != _children.Count || _refreshCache) {
+            if(transform.childCount != _children.Count) {
+                Debug.Log($"[{name}]: child count changed");
                 RefreshChildCache();
-                _refreshCache = false;
+                layoutChanged = true;
             }
             
-            // check if any children were disabled this frame
-            foreach(RectTransform rect in _children) {
-                if(!rect.gameObject.activeInHierarchy) {
-                    _refreshCache = true;
+            foreach(RectTransform rect in _children.Keys) {
+                ChildInfo c = _children[rect];
+                
+                // check if item was disabled this frame
+                if(rect.gameObject.activeInHierarchy != c.enabled) {
+                    Debug.Log($"[{name}]: item active toggled");
+                    c.enabled = rect.gameObject.activeInHierarchy;
+                    layoutChanged = true;
+                }
+
+                LayoutItem li = _layoutItems[c.index];
+                
+                // check if ignore layout toggled this frame
+                if(li && li.IgnoreLayout != c.ignoreLayout) {
+                    Debug.Log($"[{name}]: item ignore toggled");
+                    c.ignoreLayout = li.IgnoreLayout;
+                    layoutChanged = true;
+                }
+
+                // check if item changed size this frame
+                if(!(li && li.SizeMode.x == SizingMode.Grow) && !Mathf.Approximately(rect.rect.size.x, c.size.x)) {
+                    Debug.Log($"[{name}]: item size x changed");
+                    c.size = c.size.With(x: rect.rect.size.x); 
+                    layoutChanged = true;
+                }
+                if(!(li && li.SizeMode.y == SizingMode.Grow) && !Mathf.Approximately(rect.rect.size.y, c.size.y)) {
+                    Debug.Log($"[{name}]: item size y changed");
+                    c.size = c.size.With(y: rect.rect.size.y);
+                    layoutChanged = true;
                 }
             }
+
+            if(layoutChanged) {
+                _dirty = true;
+                OnLayoutChanged?.Invoke();
+            }
+
+            _lastSize = _rect.rect.size;
         }
 
         private void OnDrawGizmosSelected() {
@@ -144,6 +203,21 @@ namespace Poke.UI
             LayoutUtil.DrawDebugBox(r, _rect.position.z, Color.green);
         }
         #endregion
+
+        private bool CheckIngoreElem(ChildInfo ci) {
+            return !ci.enabled || ci.ignoreLayout;
+        }
+
+        private void SetAnchorPivotX(RectTransform rt, float x) {
+            rt.anchorMin = rt.anchorMin.With(x: x);
+            rt.anchorMax = rt.anchorMax.With(x: x);
+            rt.pivot = rt.pivot.With(x: x);
+        }
+        private void SetAnchorPivotY(RectTransform rt, float y) {
+            rt.anchorMin = rt.anchorMin.With(y: y);
+            rt.anchorMax = rt.anchorMax.With(y: y);
+            rt.pivot = rt.pivot.With(y: y);
+        }
         
         #region LAYOUT PASSES
         public void ComputeFitSize() {
@@ -176,11 +250,16 @@ namespace Poke.UI
                 LayoutItem li = null;
                 // calculate content size
                 float maxCrossSize = 0;
-                foreach(RectTransform rt in _children) {
+                foreach(RectTransform rt in _children.Keys) {
+                    // skip disabled/ignore items
+                    ChildInfo elem = _children[rt];
+                    if(!elem.enabled || elem.ignoreLayout)
+                        continue;
+                    
                     bool growX = false, growY = false;
                     
-                    li = rt.GetComponent<LayoutItem>();
-                    if(li != null) {
+                    li = _layoutItems[elem.index];
+                    if(li) {
                         growX = li.SizeMode.x == SizingMode.Grow;
                         growY = li.SizeMode.y == SizingMode.Grow;
                         if(growX || growY) {
@@ -299,7 +378,7 @@ namespace Poke.UI
             }
             
             // apply RectTransform DrivenTransformProperties
-            foreach(RectTransform rt in _children) {
+            foreach(RectTransform rt in _children.Keys) {
                 _rectTracker.Add(
                     this,
                     rt,
@@ -312,7 +391,6 @@ namespace Poke.UI
             float spacing = 0;
             float leftover = 0;
             int index = 0;
-            int lastChildIndex = _children.Count - 1;
             
             switch(m_direction) {
                 // ROW -> PRIMARY AXIS
@@ -321,10 +399,12 @@ namespace Poke.UI
                         case Justification.Start:
                             primaryOffset += m_padding.left;
                             
-                            foreach(RectTransform rt in _children) {
-                                rt.anchorMin = rt.anchorMin.With(x: 0);
-                                rt.anchorMax = rt.anchorMax.With(x: 0);
-                                rt.pivot = rt.pivot.With(x: 0);
+                            foreach(RectTransform rt in _children.Keys) {
+                                // skip disabled/ignore items
+                                if(CheckIngoreElem(_children[rt]))
+                                    continue;
+                                
+                                SetAnchorPivotX(rt, 0);
 
                                 rt.anchoredPosition = rt.anchoredPosition.With(x: primaryOffset);
                                 primaryOffset += rt.sizeDelta.x + m_innerSpacing;
@@ -333,10 +413,12 @@ namespace Poke.UI
                         case Justification.Center:
                             primaryOffset -= _contentSize.x / 2;
                             
-                            foreach(RectTransform rt in _children) {
-                                rt.anchorMin = rt.anchorMin.With(x: 0.5f);
-                                rt.anchorMax = rt.anchorMax.With(x: 0.5f);
-                                rt.pivot = rt.pivot.With(x: 0.5f);
+                            foreach(RectTransform rt in _children.Keys) {
+                                // skip disabled/ignore items
+                                if(CheckIngoreElem(_children[rt]))
+                                    continue;
+                                
+                                SetAnchorPivotX(rt, 0.5f);
 
                                 primaryOffset += rt.sizeDelta.x / 2;
                                 rt.anchoredPosition = rt.anchoredPosition.With(x: primaryOffset + m_padding.left);
@@ -346,10 +428,12 @@ namespace Poke.UI
                         case Justification.End:
                             primaryOffset += m_padding.right + _contentSize.x;
                             
-                            foreach(RectTransform rt in _children) {
-                                rt.anchorMin = rt.anchorMin.With(x: 1);
-                                rt.anchorMax = rt.anchorMax.With(x: 1);
-                                rt.pivot = rt.pivot.With(x: 1);
+                            foreach(RectTransform rt in _children.Keys) {
+                                // skip disabled/ignore items
+                                if(CheckIngoreElem(_children[rt]))
+                                    continue;
+                                
+                                SetAnchorPivotX(rt, 1);
 
                                 primaryOffset -= rt.sizeDelta.x;
                                 rt.anchoredPosition = rt.anchoredPosition.With(x: -primaryOffset + m_padding.left + m_padding.right);
@@ -363,10 +447,12 @@ namespace Poke.UI
                             if(_children.Count > 1)
                                 spacing = leftover / (_children.Count-1);
 
-                            foreach(RectTransform rt in _children) {
-                                rt.anchorMin = rt.anchorMin.With(x: 0);
-                                rt.anchorMax = rt.anchorMax.With(x: 0);
-                                rt.pivot = rt.pivot.With(x: 0);
+                            foreach(RectTransform rt in _children.Keys) {
+                                // skip disabled/ignore items
+                                if(CheckIngoreElem(_children[rt]))
+                                    continue;
+                                
+                                SetAnchorPivotX(rt, 0);
 
                                 if(index != 0) {
                                     primaryOffset += spacing;
@@ -384,10 +470,12 @@ namespace Poke.UI
                         case Justification.Start:
                             primaryOffset += m_padding.left + _contentSize.x;
                             
-                            foreach(RectTransform rt in _children) {
-                                rt.anchorMin = rt.anchorMin.With(x: 0);
-                                rt.anchorMax = rt.anchorMax.With(x: 0);
-                                rt.pivot = rt.pivot.With(x: 0);
+                            foreach(RectTransform rt in _children.Keys) {
+                                // skip disabled/ignore items
+                                if(CheckIngoreElem(_children[rt]))
+                                    continue;
+                                
+                                SetAnchorPivotX(rt, 0);
 
                                 primaryOffset -= rt.sizeDelta.x + m_innerSpacing;
                                 rt.anchoredPosition = rt.anchoredPosition.With(x: primaryOffset);
@@ -396,10 +484,12 @@ namespace Poke.UI
                         case Justification.Center:
                             primaryOffset += _contentSize.x / 2;
                             
-                            foreach(RectTransform rt in _children) {
-                                rt.anchorMin = rt.anchorMin.With(x: 0.5f);
-                                rt.anchorMax = rt.anchorMax.With(x: 0.5f);
-                                rt.pivot = rt.pivot.With(x: 0.5f);
+                            foreach(RectTransform rt in _children.Keys) {
+                                // skip disabled/ignore items
+                                if(CheckIngoreElem(_children[rt]))
+                                    continue;
+                                
+                                SetAnchorPivotX(rt, 0.5f);
 
                                 primaryOffset -= rt.sizeDelta.x / 2;
                                 rt.anchoredPosition = rt.anchoredPosition.With(x: primaryOffset - m_padding.right);
@@ -409,10 +499,12 @@ namespace Poke.UI
                         case Justification.End:
                             primaryOffset += m_padding.right;
                             
-                            foreach(RectTransform rt in _children) {
-                                rt.anchorMin = rt.anchorMin.With(x: 1);
-                                rt.anchorMax = rt.anchorMax.With(x: 1);
-                                rt.pivot = rt.pivot.With(x: 1);
+                            foreach(RectTransform rt in _children.Keys) {
+                                // skip disabled/ignore items
+                                if(CheckIngoreElem(_children[rt]))
+                                    continue;
+                                
+                                SetAnchorPivotX(rt, 1);
 
                                 rt.anchoredPosition = rt.anchoredPosition.With(x: -primaryOffset);
                                 primaryOffset += rt.sizeDelta.x + m_innerSpacing;
@@ -426,10 +518,12 @@ namespace Poke.UI
                             if(_children.Count > 1)
                                 spacing = leftover / (_children.Count-1);
                                 
-                            foreach(RectTransform rt in _children) {
-                                rt.anchorMin = rt.anchorMin.With(x: 1);
-                                rt.anchorMax = rt.anchorMax.With(x: 1);
-                                rt.pivot = rt.pivot.With(x: 1);
+                            foreach(RectTransform rt in _children.Keys) {
+                                // skip disabled/ignore items
+                                if(CheckIngoreElem(_children[rt]))
+                                    continue;
+                                
+                                SetAnchorPivotX(rt, 1);
                                 
                                 rt.anchoredPosition = rt.anchoredPosition.With(x: -primaryOffset);
                                 primaryOffset += rt.sizeDelta.x + spacing;
@@ -443,10 +537,12 @@ namespace Poke.UI
                         case Justification.Start:
                             primaryOffset -= m_padding.top;
                             
-                            foreach(RectTransform rt in _children) {
-                                rt.anchorMin = rt.anchorMin.With(y: 1);
-                                rt.anchorMax = rt.anchorMax.With(y: 1);
-                                rt.pivot = rt.pivot.With(y: 1);
+                            foreach(RectTransform rt in _children.Keys) {
+                                // skip disabled/ignore items
+                                if(CheckIngoreElem(_children[rt]))
+                                    continue;
+                                
+                                SetAnchorPivotY(rt, 1);
 
                                 rt.anchoredPosition = rt.anchoredPosition.With(y: primaryOffset);
                                 primaryOffset -= rt.sizeDelta.y + m_innerSpacing;
@@ -455,10 +551,12 @@ namespace Poke.UI
                         case Justification.Center:
                             primaryOffset += _contentSize.y / 2;
                             
-                            foreach(RectTransform rt in _children) {
-                                rt.anchorMin = rt.anchorMin.With(y: 0.5f);
-                                rt.anchorMax = rt.anchorMax.With(y: 0.5f);
-                                rt.pivot = rt.pivot.With(y: 0.5f);
+                            foreach(RectTransform rt in _children.Keys) {
+                                // skip disabled/ignore items
+                                if(CheckIngoreElem(_children[rt]))
+                                    continue;
+                                
+                                SetAnchorPivotY(rt, 0.5f);
 
                                 primaryOffset -= rt.sizeDelta.y / 2;
                                 rt.anchoredPosition = rt.anchoredPosition.With(y: primaryOffset - m_padding.top);
@@ -468,10 +566,12 @@ namespace Poke.UI
                         case Justification.End:
                             primaryOffset += _contentSize.y;
                             
-                            foreach(RectTransform rt in _children) {
-                                rt.anchorMin = rt.anchorMin.With(y: 0);
-                                rt.anchorMax = rt.anchorMax.With(y: 0);
-                                rt.pivot = rt.pivot.With(y: 0);
+                            foreach(RectTransform rt in _children.Keys) {
+                                // skip disabled/ignore items
+                                if(CheckIngoreElem(_children[rt]))
+                                    continue;
+                                
+                                SetAnchorPivotY(rt, 0);
 
                                 primaryOffset -= rt.sizeDelta.y;
                                 rt.anchoredPosition = rt.anchoredPosition.With(y: primaryOffset - m_padding.top);
@@ -485,10 +585,12 @@ namespace Poke.UI
                             if(_children.Count > 1)
                                 spacing = leftover / (_children.Count-1);
                                 
-                            foreach(RectTransform rt in _children) {
-                                rt.anchorMin = rt.anchorMin.With(y: 1);
-                                rt.anchorMax = rt.anchorMax.With(y: 1);
-                                rt.pivot = rt.pivot.With(y: 1);
+                            foreach(RectTransform rt in _children.Keys) {
+                                // skip disabled/ignore items
+                                if(CheckIngoreElem(_children[rt]))
+                                    continue;
+                                
+                                SetAnchorPivotY(rt, 1);
                                 
                                 if(index != 0) {
                                     primaryOffset += spacing;
@@ -507,10 +609,12 @@ namespace Poke.UI
                         case Justification.Start:
                             primaryOffset -= m_padding.top + _contentSize.y;
                             
-                            foreach(RectTransform rt in _children) {
-                                rt.anchorMin = rt.anchorMin.With(y: 1);
-                                rt.anchorMax = rt.anchorMax.With(y: 1);
-                                rt.pivot = rt.pivot.With(y: 1);
+                            foreach(RectTransform rt in _children.Keys) {
+                                // skip disabled/ignore items
+                                if(CheckIngoreElem(_children[rt]))
+                                    continue;
+                                
+                                SetAnchorPivotY(rt, 1);
 
                                 primaryOffset += rt.sizeDelta.y;
                                 rt.anchoredPosition = rt.anchoredPosition.With(y: primaryOffset);
@@ -520,10 +624,8 @@ namespace Poke.UI
                         case Justification.Center:
                             primaryOffset -= _contentSize.y / 2;
                             
-                            foreach(RectTransform rt in _children) {
-                                rt.anchorMin = rt.anchorMin.With(y: 0.5f);
-                                rt.anchorMax = rt.anchorMax.With(y: 0.5f);
-                                rt.pivot = rt.pivot.With(y: 0.5f);
+                            foreach(RectTransform rt in _children.Keys) {
+                                SetAnchorPivotY(rt, 0.5f);
 
                                 primaryOffset += rt.sizeDelta.y / 2;
                                 rt.anchoredPosition = rt.anchoredPosition.With(y: primaryOffset - m_padding.top);
@@ -533,10 +635,12 @@ namespace Poke.UI
                         case Justification.End:
                             primaryOffset += m_padding.bottom;
                             
-                            foreach(RectTransform rt in _children) {
-                                rt.anchorMin = rt.anchorMin.With(y: 0);
-                                rt.anchorMax = rt.anchorMax.With(y: 0);
-                                rt.pivot = rt.pivot.With(y: 0);
+                            foreach(RectTransform rt in _children.Keys) {
+                                // skip disabled/ignore items
+                                if(CheckIngoreElem(_children[rt]))
+                                    continue;
+                                
+                                SetAnchorPivotY(rt, 0);
 
                                 rt.anchoredPosition = rt.anchoredPosition.With(y: primaryOffset);
                                 primaryOffset += rt.sizeDelta.y + m_innerSpacing;
@@ -550,10 +654,12 @@ namespace Poke.UI
                             if(_children.Count > 1)
                                 spacing = leftover / (_children.Count-1);
                                 
-                            foreach(RectTransform rt in _children) {
-                                rt.anchorMin = rt.anchorMin.With(y: 0);
-                                rt.anchorMax = rt.anchorMax.With(y: 0);
-                                rt.pivot = rt.pivot.With(y: 0);
+                            foreach(RectTransform rt in _children.Keys) {
+                                // skip disabled/ignore items
+                                if(CheckIngoreElem(_children[rt]))
+                                    continue;
+                                
+                                SetAnchorPivotY(rt, 0);
                                 
                                 rt.anchoredPosition = rt.anchoredPosition.With(y: primaryOffset);
                                 primaryOffset += rt.sizeDelta.y + spacing;
@@ -574,19 +680,23 @@ namespace Poke.UI
                         case Alignment.Start:
                             crossOffset += m_padding.top;
                             
-                            foreach(RectTransform rt in _children) {
-                                rt.anchorMin = rt.anchorMin.With(y: 1);
-                                rt.anchorMax = rt.anchorMax.With(y: 1);
-                                rt.pivot = rt.pivot.With(y: 1);
+                            foreach(RectTransform rt in _children.Keys) {
+                                // skip disabled/ignore items
+                                if(CheckIngoreElem(_children[rt]))
+                                    continue;
+                                
+                                SetAnchorPivotY(rt, 1);
 
                                 rt.anchoredPosition = rt.anchoredPosition.With(y: -crossOffset);
                             }
                             break;
                         case Alignment.Center:
-                            foreach(RectTransform rt in _children) {
-                                rt.anchorMin = rt.anchorMin.With(y: 0.5f);
-                                rt.anchorMax = rt.anchorMax.With(y: 0.5f);
-                                rt.pivot = rt.pivot.With(y: 0.5f);
+                            foreach(RectTransform rt in _children.Keys) {
+                                // skip disabled/ignore items
+                                if(CheckIngoreElem(_children[rt]))
+                                    continue;
+                                
+                                SetAnchorPivotY(rt, 0.5f);
 
                                 rt.anchoredPosition = rt.anchoredPosition.With(y: m_padding.bottom/2 - m_padding.top/2);
                             }
@@ -594,10 +704,12 @@ namespace Poke.UI
                         case Alignment.End:
                             crossOffset += m_padding.bottom;
                             
-                            foreach(RectTransform rt in _children) {
-                                rt.anchorMin = rt.anchorMin.With(y: 0);
-                                rt.anchorMax = rt.anchorMax.With(y: 0);
-                                rt.pivot = rt.pivot.With(y: 0);
+                            foreach(RectTransform rt in _children.Keys) {
+                                // skip disabled/ignore items
+                                if(CheckIngoreElem(_children[rt]))
+                                    continue;
+                                
+                                SetAnchorPivotY(rt, 0);
 
                                 rt.anchoredPosition = rt.anchoredPosition.With(y: crossOffset);
                             }
@@ -612,19 +724,23 @@ namespace Poke.UI
                         case Alignment.Start:
                             crossOffset += m_padding.left;
                             
-                            foreach(RectTransform rt in _children) {
-                                rt.anchorMin = rt.anchorMin.With(x: 0);
-                                rt.anchorMax = rt.anchorMax.With(x: 0);
-                                rt.pivot = rt.pivot.With(x: 0);
+                            foreach(RectTransform rt in _children.Keys) {
+                                // skip disabled/ignore items
+                                if(CheckIngoreElem(_children[rt]))
+                                    continue;
+                                
+                                SetAnchorPivotX(rt, 0);
 
                                 rt.anchoredPosition = rt.anchoredPosition.With(x: crossOffset);
                             }
                             break;
                         case Alignment.Center:
-                            foreach(RectTransform rt in _children) {
-                                rt.anchorMin = rt.anchorMin.With(x: 0.5f);
-                                rt.anchorMax = rt.anchorMax.With(x: 0.5f);
-                                rt.pivot = rt.pivot.With(x: 0.5f);
+                            foreach(RectTransform rt in _children.Keys) {
+                                // skip disabled/ignore items
+                                if(CheckIngoreElem(_children[rt]))
+                                    continue;
+                                
+                                SetAnchorPivotX(rt, 0.5f);
 
                                 rt.anchoredPosition = rt.anchoredPosition.With(x: m_padding.left/2 - m_padding.right/2);
                             }
@@ -632,10 +748,12 @@ namespace Poke.UI
                         case Alignment.End:
                             crossOffset += m_padding.right;
                             
-                            foreach(RectTransform rt in _children) {
-                                rt.anchorMin = rt.anchorMin.With(x: 1);
-                                rt.anchorMax = rt.anchorMax.With(x: 1);
-                                rt.pivot = rt.pivot.With(x: 1);
+                            foreach(RectTransform rt in _children.Keys) {
+                                // skip disabled/ignore items
+                                if(CheckIngoreElem(_children[rt]))
+                                    continue;
+                                
+                                SetAnchorPivotX(rt, 1);
 
                                 rt.anchoredPosition = rt.anchoredPosition.With(x: -crossOffset);
                             }
@@ -643,6 +761,8 @@ namespace Poke.UI
                     }
                     break;
             }
+
+            _dirty = false;
         }
         #endregion
         
@@ -656,16 +776,29 @@ namespace Poke.UI
             
             return -1;
         }
+
+        public void SetDirty() {
+            _dirty = true;
+        }
         
         public void RefreshChildCache() {
             _children.Clear();
+            _layoutItems = new LayoutItem[transform.childCount];
+            
             for(int i = 0; i < transform.childCount; i++) {
                 RectTransform rt = transform.GetChild(i).GetComponent<RectTransform>();
-                if(rt.gameObject.activeInHierarchy) {
-                    if(!(rt.TryGetComponent(out LayoutItem li) && li.IgnoreLayout)) {
-                        _children.Add(rt);
+                
+                LayoutItem li = rt.GetComponent<LayoutItem>();
+                _layoutItems[i] = li;
+                
+                _children.Add(
+                    rt,
+                    new ChildInfo {
+                        index = i,
+                        size = rt.rect.size,
+                        enabled = rt.gameObject.activeInHierarchy,
                     }
-                }
+                );
             }
         }
     }

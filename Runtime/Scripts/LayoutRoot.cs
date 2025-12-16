@@ -22,68 +22,68 @@ namespace Poke.UI
     ]
     public class LayoutRoot : MonoBehaviour
     {
-        [SerializeField] private int m_tickRate = 60;
-        
         private readonly SortedBucket<Layout, int, Layout> _layouts = new (l => l, l => l.GetInstanceID());
         private readonly Stack<Layout> _reverse = new ();
-        private float _tickInterval;
-        private float _lastTickTimestamp;
-        private bool _tick;
-        
-        private void Awake() {
-            _tickInterval = 1.0f / m_tickRate;
-        }
+        private bool _dirty;
 
         private void Start() {
-            _tick = true;
-            LateUpdate();
+            UpdateLayout();
         }
 
-        public void Update() {
-            if(Time.unscaledTime - _lastTickTimestamp >= _tickInterval) {
-                _tick = true;
+        private void SetDirty() {
+            _dirty = true;
+        }
+        
+        public void LateUpdate() {
+            if(_dirty) {
+                UpdateLayout();
+            }
+            else {
+                Debug.Log("[Root]: No layout changes");
             }
         }
 
-        public void LateUpdate() {
-            if(_tick) {
-                _reverse.Clear();
+        public void UpdateLayout() {
+            _reverse.Clear();
                 
-                // fit sizing pass (0)
-                //Debug.Log("[Root] Fit Size Pass");
-                foreach(Layout l in _layouts) {
+            // fit sizing pass (0)
+            Debug.Log($"[Root]: Fit Size Pass ({Time.unscaledTime:f5})");
+            foreach(Layout l in _layouts) {
+                if(l.NeedsRefresh) {
                     l.ComputeFitSize();
                     _reverse.Push(l);
                 }
+            }
 
-                // grow sizing pass (1)
-                //Debug.Log("[Root] Grow Size Pass");
-                foreach(Layout l in _layouts) {
+            // grow sizing pass (1)
+            Debug.Log($"[Root]: Grow Size Pass ({Time.unscaledTime:f5})");
+            foreach(Layout l in _layouts) {
+                if(l.NeedsRefresh) {
                     l.GrowChildren();
                 }
-                
-                // layout pass (2)
-                //Debug.Log("[Root] Layout Pass");
-                foreach(Layout l in _reverse) {
-                    l.ComputeLayout();
-                }
-
-                _lastTickTimestamp = Time.unscaledTime;
-                _tick = false;
             }
-        }
-
-        public void ForceUpdate() {
-            LateUpdate();
+                
+            // layout pass (2)
+            Debug.Log($"[Root]: Layout Pass ({Time.unscaledTime:f5})");
+            foreach(Layout l in _reverse) {
+                l.ComputeLayout();
+                Debug.Log(l.name);
+            }
+            
+            Debug.Log($"[Root]: Refreshed {_reverse.Count} layouts");
+            
+            _dirty = false;
         }
 
         public void RegisterLayout(Layout layout) {
             //Debug.Log($"Registered \"{layout.name}\" at depth [{layout.Depth}]");
+            layout.OnLayoutChanged += SetDirty;
             _layouts.Add(layout);
         }
 
         public void UnregisterLayout(Layout layout) {
             if(_layouts.Remove(layout)) {
+                layout.OnLayoutChanged -= SetDirty;
                 //Debug.Log($"Removed \"{layout.name}\"");
             }
             else {
