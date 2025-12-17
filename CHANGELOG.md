@@ -1,4 +1,9 @@
-﻿## [1.4.0] - 2025-12-16
+﻿## [1.4.1] - 2025-12-17
+
+### Fixed
+- refresh `Layout` on enable
+
+## [1.4.0] - 2025-12-17
 
 ### Changed
 - HUGE (9-10x) performance improvements

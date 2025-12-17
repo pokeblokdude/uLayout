@@ -125,6 +125,7 @@ namespace Poke.UI
             
             _root?.RegisterLayout(this);
             RefreshChildCache();
+            _dirty = true;
         }
 
         protected override void OnDisable() {
