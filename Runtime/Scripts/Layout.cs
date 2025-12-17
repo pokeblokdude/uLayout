@@ -52,6 +52,7 @@ namespace Poke.UI
         private List<LayoutItem> _growChildren;
         private Vector2Int _growChildCount;
         private bool _dirty;
+        private int _ignoreCount;
         
         private Vector2 _lastSize;
 
@@ -217,6 +218,7 @@ namespace Poke.UI
         public void ComputeFitSize() {
             _growChildren.Clear();
             _growChildCount = new Vector2Int(0, 0);
+            _ignoreCount = 0;
             
             _rectTracker.Clear();
             if(m_sizing.x == SizingMode.FitContent || (!_parent && m_sizing.x == SizingMode.Grow))
@@ -225,7 +227,14 @@ namespace Poke.UI
                 _rectTracker.Add(this, _rect, DrivenTransformProperties.SizeDeltaY);
             
             if(_children.Count > 0) {
-                float primarySize = m_innerSpacing * (_children.Count-1);
+                // get number of disabled/ignore children
+                foreach(RectTransform rt in _children.Keys) {
+                    if(!_children[rt].enabled || _children[rt].ignoreLayout) {
+                        _ignoreCount++;
+                    }
+                }
+
+                float primarySize = m_justifyContent == Justification.SpaceBetween ? 0 : m_innerSpacing * (_children.Count-_ignoreCount-1);
                 float crossSize = 0;
                 
                 switch(m_direction) {
@@ -247,8 +256,9 @@ namespace Poke.UI
                 foreach(RectTransform rt in _children.Keys) {
                     // skip disabled/ignore items
                     ChildInfo elem = _children[rt];
-                    if(!elem.enabled || elem.ignoreLayout)
+                    if(!elem.enabled || elem.ignoreLayout) {
                         continue;
+                    }
                     
                     bool growX = false, growY = false;
                     
@@ -423,7 +433,7 @@ namespace Poke.UI
                             }
                             break;
                         case Justification.End:
-                            primaryOffset += m_padding.right + _contentSize.x;
+                            primaryOffset -= m_padding.right + _contentSize.x;
                             
                             foreach(RectTransform rt in _children.Keys) {
                                 // skip disabled/ignore items
@@ -432,9 +442,9 @@ namespace Poke.UI
                                 
                                 SetAnchorPivotX(rt, 1);
 
-                                primaryOffset -= rt.sizeDelta.x;
-                                rt.anchoredPosition = rt.anchoredPosition.With(x: -primaryOffset + m_padding.left + m_padding.right);
-                                primaryOffset -= m_innerSpacing;
+                                primaryOffset += rt.sizeDelta.x;
+                                rt.anchoredPosition = rt.anchoredPosition.With(x: primaryOffset);
+                                primaryOffset += m_innerSpacing;
                             }
                             break;
                         case Justification.SpaceBetween:
@@ -442,7 +452,7 @@ namespace Poke.UI
                             leftover = _rect.rect.size.x - _contentSize.x;
                             
                             if(_children.Count > 1)
-                                spacing = leftover / (_children.Count-1);
+                                spacing = leftover / (_children.Count-_ignoreCount-1);
 
                             foreach(RectTransform rt in _children.Keys) {
                                 // skip disabled/ignore items
@@ -580,7 +590,7 @@ namespace Poke.UI
                             leftover = _rect.rect.size.y - _contentSize.y;
                             
                             if(_children.Count > 1)
-                                spacing = leftover / (_children.Count-1);
+                                spacing = leftover / (_children.Count-_ignoreCount-1);
                                 
                             foreach(RectTransform rt in _children.Keys) {
                                 // skip disabled/ignore items

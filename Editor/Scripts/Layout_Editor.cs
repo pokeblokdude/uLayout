@@ -47,7 +47,12 @@ namespace Poke.UI
             EditorGUILayout.PropertyField(_direction);
             EditorGUILayout.PropertyField(_justifyContent);
             EditorGUILayout.PropertyField(_alignContent);
+
+            if((Layout.Justification)_justifyContent.enumValueFlag == Layout.Justification.SpaceBetween) {
+                GUI.enabled = false;
+            }
             EditorGUILayout.PropertyField(_innerSpacing);
+            GUI.enabled = true;
 
             if(serializedObject.hasModifiedProperties) {
                 _layout.SetDirty();

@@ -1,4 +1,21 @@
-﻿## [1.3.2] - 2025-12-15
+﻿## [1.4.0] - 2025-12-16
+
+
+
+### Changed
+- HUGE (7-8x) performance improvements
+  - demo scene went from ~21ms &rarr; 3.5ms (in editor) on my machine
+- Layout updates are now only triggered when an element resizes
+  - `LayoutRoot` also only refreshes `Layout` objects whose children actually changed
+- Greatly reduced number of `Layout` child cache refreshes
+- `LayoutText` objects now only resize on TMP render events (which are only called when text content/size changes)
+- `Layout` inner spacing field is now ignored when using JustifyContent: SpaceBetween
+  - The field is also greyed out in the inspector :)
+
+### Removed
+- removed `LayoutRoot` tickrate field
+
+## [1.3.2] - 2025-12-15
 
 ### Fixed
 - fixed Editor asmdef

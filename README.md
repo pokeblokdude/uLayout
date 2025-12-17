@@ -2,7 +2,7 @@
 
 **uLayout** is simple UI layout system designed as a drop-in replacement for Unity's `VerticalLayoutGroup` and `HorizontalLayoutGroup`, implementing a core subset of the *flexbox* spec from CSS. The system operates purely on `RectTransform`s, meaning full compatibility with native uGUI components like `Image`, `RectMask2D`, etc.
 
-It's designed with performance in mind (layout children are cached between hierarchy changes), but I haven't run any dedicated performance tests yet.
+It's designed with performance in mind&mdash;`LayoutRoot` only triggers an update when resize events occur, and only the `Layout` objects which had a child resize are updated. The demo scene costs ~3.5ms on my machine (i9-9900k), most of which is canvas updates.
 
 ---
 
@@ -31,13 +31,12 @@ Any `LayoutItem` can be exluded from the layout (use *absolute* positioning, as 
 Further explanation and examples can be found in the sample scene at `Examples/LayoutDemo.unity`. If you've never used CSS flexbox before, I also recommend taking a look at [this guide](https://css-tricks.com/snippets/css/a-guide-to-flexbox/) that covers the basics with super helpful illustrations :)
 
 ### Text Support
-uLayout also supports TextMeshPro `TMP_Text` objects, using the `LayoutText` component. This also derives from `LayoutItem`, offering the same sizing options. This allows text objects to resize depending on contents and font size.
+uLayout also supports TextMeshPro `TMP_Text` objects, using the `LayoutText` component. This also derives from `LayoutItem`, offering the same sizing options. This allows text objects to resize depending on contents and font size. \
+Resizing text is relatively expensive, and triggers a lot of canvas updates&mdash;I would generally avoid having a ton of animated `LayoutText` objects running at once, and you also might want to consider spreading them across different canvases.
 
 ---
 
 ## Component Settings
-### LayoutRoot
-- **Tick Rate** (`int`): the number of times to update the layout system per second
 ### LayoutItem
 - **Ignore Layout** (`bool`): whether to exclude this element from layout positioning
 - **Size Mode**: Sets the rect sizing mode for each axis. "**FitContent**" has no effect (use derived classes below)
