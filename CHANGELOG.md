@@ -1,8 +1,8 @@
 ﻿## [1.4.0] - 2025-12-16
 
 ### Changed
-- HUGE (7-8x) performance improvements
-  - demo scene went from ~21ms &rarr; 3.5ms (in editor) on my machine
+- HUGE (9-10x) performance improvements
+  - demo scene went from ~21ms &rarr; 2.1ms (in editor) on my machine
 - Layout updates are now only triggered when an element resizes
   - `LayoutRoot` also only refreshes `Layout` objects whose children actually changed
 - Greatly reduced number of `Layout` child cache refreshes
