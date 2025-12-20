@@ -54,14 +54,21 @@ namespace Poke.UI
 
         protected virtual void Awake() {
             _rect = GetComponent<RectTransform>();
-            _parentRect = transform.parent.GetComponent<RectTransform>();
-            _parentSize = _parentRect.rect.size;
+            
+            // parent will always exist EXCEPT for in prefab editing
+            // (bc Canvas has a RectTransform)
+            if(transform.parent) {
+                _parentRect = transform.parent.GetComponent<RectTransform>();
+            }
+            _parentSize = _parentRect ? _parentRect.rect.size : default;
         }
 
         protected virtual void OnEnable() {
-            _parent = transform.parent.GetComponent<Layout>();
-            if(_parent) {
-                _parent.RefreshChildCache();
+            if(transform.parent) {
+                _parent = transform.parent.GetComponent<Layout>();
+                if(_parent) {
+                    _parent.RefreshChildCache();
+                }
             }
         }
 
@@ -73,7 +80,8 @@ namespace Poke.UI
 
         public virtual void Update() {
             // Do grow sizing here if parent is not a Layout
-            if(!_parent) {
+            // Grow does nothing if there is no parent (prefab editing)
+            if(!_parent && _parentRect) {
                 // only update size if parent size has changed
                 if(m_sizing.x == SizingMode.Grow && !Mathf.Approximately(_parentRect.rect.size.x, _parentSize.x)) {
                     _rect.SetSizeWithCurrentAnchors(RectTransform.Axis.Horizontal, _parentRect.rect.size.x);

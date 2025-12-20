@@ -1,4 +1,11 @@
-﻿## [1.4.1] - 2025-12-17
+﻿## [1.4.2] - 2025-12-20
+
+### Fixed
+- check if `Layout` has parent rect (for prefab editing)
+  - in prefab editing, the Grow `SizingMode` for any top-level `Layout` objects will act as if it is set to Fixed. 
+- fixed `Layout` not finding `LayoutRoot` on same object if parent is null
+
+## [1.4.1] - 2025-12-17
 
 ### Fixed
 - refresh `Layout` on enable

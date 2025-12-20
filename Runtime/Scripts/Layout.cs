@@ -34,7 +34,7 @@ namespace Poke.UI
         [SerializeField] private Alignment m_alignContent;
         [SerializeField] private float m_innerSpacing;
 
-        public int ChildCount => _children.Count;
+        public int ChildCount => _children?.Count ?? 0;
         public int Depth => _depth;
         public int GrowChildCount => _growChildren.Count;
         public LayoutDirection Direction => m_direction;
@@ -100,13 +100,13 @@ namespace Poke.UI
             _depth = 0;
             Transform t = transform;
             while(_root == null) {
-                if(t.parent == null) {
-                    Debug.LogError("No UILayoutRoot found! Aborting.");
-                    break;
-                }
-
                 if(t.TryGetComponent(out LayoutRoot root)) {
                     _root = root;
+                    break;
+                }
+                
+                if(t.parent == null) {
+                    Debug.LogError("No LayoutRoot found! Aborting.");
                     break;
                 }
 
