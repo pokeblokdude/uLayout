@@ -1,4 +1,23 @@
-﻿# <img width="748" height="215" alt="logo" src="https://github.com/user-attachments/assets/7a8f5a75-0348-46e5-93ee-1ab02c00c881" />
+This branch makes a few adjustments to uLayout based on my experience using the system:
+- Made the change detection more robust, removing the need to manually enable/disable objects to test changes
+  - Sibling index changes are now detected, making code-based or Hierarchy based order changes update the layouts
+  - All changes to uLayout component inspectors should now force a layout refresh
+- Sped up the hot loops of the Layout class
+  - Replaced children `Dictionary<RectTransform>`, iteration via `.Keys` and per-element fetching with a simpler `List<ChildInfo>`
+  - Moved `RectTransform` references into a field on `ChildInfo`
+  - Replaced `LayoutItem[]` array allocated every refresh and component null checks with a new bool/component field in `ChildInfo`
+  - Replaced `Vector2` utility method `With` with `SetX` and `SetY` methods avoiding nullable containers
+- Extended logging
+  - Each uLayout class gets a new Log toggle that enables logging for roots, layouts, items and text elements
+  - Logging lets you see where specific changes or dimensions might come from, confirm whether change detection works correctly etc
+- Added missing custom editors for `LayoutRoot` and `LayoutText`
+- Fixed occasional serialized property exceptions from custom editors caused by use of `Awake` instead of `OnEnable`
+- Fixed GameObject/UI/Layout commands not creating child GameObjects under current selection under a Canvas
+- Fixed `LayoutText` generating non-integer label heights (with multiple labels and multiple lines, this could lead to layouts getting stuck with subpixel jitter due to float imprecision)
+
+---
+ 
+ # <img width="748" height="215" alt="logo" src="https://github.com/user-attachments/assets/7a8f5a75-0348-46e5-93ee-1ab02c00c881" />
 
 **uLayout** is simple UI layout system designed as a drop-in replacement for Unity's `VerticalLayoutGroup` and `HorizontalLayoutGroup`, implementing a core subset of the *flexbox* spec from CSS. The system operates purely on `RectTransform`s, meaning full compatibility with native uGUI components like `Image`, `RectMask2D`, etc.
 
