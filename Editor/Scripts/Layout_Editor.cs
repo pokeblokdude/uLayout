@@ -11,15 +11,13 @@
     The above copyright notice and this permission notice shall be included in all
     copies or substantial portions of the Software.
 */
+
 using UnityEditor;
 using UnityEngine;
 
 namespace Poke.UI
 {
-    [
-        CustomEditor(typeof(Layout)),
-        CanEditMultipleObjects
-    ]
+    [CustomEditor (typeof (Layout)), CanEditMultipleObjects]
     public class Layout_Editor : LayoutItem_Editor
     {
         private Layout _layout;
@@ -28,45 +26,60 @@ namespace Poke.UI
         private SerializedProperty _justifyContent;
         private SerializedProperty _alignContent;
         private SerializedProperty _innerSpacing;
+        private SerializedProperty _log;
         
-        protected override void Awake() {
-            base.Awake();
+
+        protected override void OnEnable ()
+        {
+            base.OnEnable ();
             _layout = target as Layout;
 
-            _padding = serializedObject.FindProperty("m_padding");
-            _direction = serializedObject.FindProperty("m_direction");
-            _justifyContent = serializedObject.FindProperty("m_justifyContent");
-            _alignContent = serializedObject.FindProperty("m_alignContent");
-            _innerSpacing = serializedObject.FindProperty("m_innerSpacing");
+            _padding = serializedObject.FindProperty ("m_padding");
+            _direction = serializedObject.FindProperty ("m_direction");
+            _justifyContent = serializedObject.FindProperty ("m_justifyContent");
+            _alignContent = serializedObject.FindProperty ("m_alignContent");
+            _innerSpacing = serializedObject.FindProperty ("m_innerSpacing");
+            _log = serializedObject.FindProperty ("m_log");
         }
 
-        public override void OnInspectorGUI() {
-            base.OnInspectorGUI();
+        public override void OnInspectorGUI ()
+        {
+            if (_layout == null)
+                return;
+            
+            EditorGUILayout.PropertyField (_log);
+            base.OnInspectorGUI ();
+            
+            EditorGUILayout.PropertyField (_padding);
+            EditorGUILayout.PropertyField (_direction);
+            EditorGUILayout.PropertyField (_justifyContent);
+            EditorGUILayout.PropertyField (_alignContent);
 
-            EditorGUILayout.PropertyField(_padding);
-            EditorGUILayout.PropertyField(_direction);
-            EditorGUILayout.PropertyField(_justifyContent);
-            EditorGUILayout.PropertyField(_alignContent);
-
-            if((Layout.Justification)_justifyContent.enumValueFlag == Layout.Justification.SpaceBetween) {
+            if ((Layout.Justification)_justifyContent.enumValueFlag == Layout.Justification.SpaceBetween)
+            {
                 GUI.enabled = false;
             }
-            EditorGUILayout.PropertyField(_innerSpacing);
+
+            EditorGUILayout.PropertyField (_innerSpacing);
             GUI.enabled = true;
 
-            if(serializedObject.hasModifiedProperties) {
-                _layout.SetDirty();
-                serializedObject.ApplyModifiedProperties();
+            if (serializedObject.hasModifiedProperties)
+            {
+                _layout.SetDirty ();
+                serializedObject.ApplyModifiedProperties ();
             }
-            
-            EditorGUILayout.Space();
-            EditorGUILayout.HelpBox(
+
+            EditorGUILayout.Space ();
+            EditorGUILayout.HelpBox 
+            (
                 $"Tracking {_layout.ChildCount} layout elements." + (_layout.GrowChildCount > 0 ? $"\n({_layout.GrowChildCount} grow)" : ""),
                 MessageType.Info
             );
-            if(GUILayout.Button("Refresh Child Cache")) {
-                _layout.RefreshChildCache();
-                EditorApplication.QueuePlayerLoopUpdate();
+            
+            if (GUILayout.Button ("Refresh Child Cache"))
+            {
+                _layout.RefreshChildCache ();
+                EditorApplication.QueuePlayerLoopUpdate ();
             }
         }
     }

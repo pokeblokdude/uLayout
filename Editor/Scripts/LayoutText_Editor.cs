@@ -17,40 +17,40 @@ using UnityEngine;
 
 namespace Poke.UI
 {
-    [ 
-        CustomEditor (typeof (LayoutItem), false), 
-        CanEditMultipleObjects
-    ]
-    public class LayoutItem_Editor : Editor
+    [CustomEditor (typeof (LayoutText)), CanEditMultipleObjects]
+    public class LayoutText_Editor : LayoutItem_Editor
     {
-        protected LayoutItem _layoutItem;
-        protected SerializedProperty _ignoreLayout;
-        protected SerializedProperty _sizing;
-
+        private LayoutText _layoutText;
+        private SerializedProperty _maxFontSize;
+        private SerializedProperty _log;
+        
         protected virtual void OnEnable ()
         {
-            _layoutItem = target as LayoutItem;
-            _ignoreLayout = serializedObject.FindProperty ("m_ignoreLayout");
-            _sizing = serializedObject.FindProperty ("m_sizing");
+            base.OnEnable ();
+            _layoutText = target as LayoutText;
+            
+            _maxFontSize = serializedObject.FindProperty ("m_maxFontSize");
+            _log = serializedObject.FindProperty ("m_log");
         }
 
         public override void OnInspectorGUI ()
         {
-            if (_layoutItem == null)
+            if (_layoutText == null)
                 return;
             
-            EditorGUILayout.PropertyField (_ignoreLayout);
-
+            EditorGUILayout.PropertyField (_log);
+            base.OnInspectorGUI ();
+            
             // disable sizing options if ignoreLayout is true
             GUI.enabled = !_ignoreLayout.boolValue;
-            EditorGUILayout.PropertyField (_sizing);
+            EditorGUILayout.PropertyField (_maxFontSize);
             GUI.enabled = true;
 
             if (serializedObject.hasModifiedProperties)
             {
                 serializedObject.ApplyModifiedProperties ();
                 
-                var layoutAbove = _layoutItem.GetComponentInParent<Layout> ();
+                var layoutAbove = _layoutText.GetComponentInParent<Layout> ();
                 if (layoutAbove != null)
                     layoutAbove.SetDirty ();
             }

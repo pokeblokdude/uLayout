@@ -11,6 +11,7 @@
     The above copyright notice and this permission notice shall be included in all
     copies or substantial portions of the Software.
 */
+
 using System;
 using UnityEngine;
 
@@ -18,24 +19,29 @@ namespace Poke.UI
 {
     [
         ExecuteAlways,
-        RequireComponent(typeof(RectTransform))
+        RequireComponent (typeof (RectTransform))
     ]
     public class LayoutItem : MonoBehaviour
     {
+        [SerializeField] protected bool m_log = false;
+        
         [SerializeField] protected bool m_ignoreLayout = false;
         
-        [Header("Sizing")]
         [SerializeField] protected SizeModes m_sizing;
 
-        public bool IgnoreLayout {
+        public bool IgnoreLayout
+        {
             get => m_ignoreLayout;
-            set {
+            set
+            {
                 m_ignoreLayout = value;
-                if(_parent) {
-                    _parent.RefreshChildCache();
+                if (_parent)
+                {
+                    _parent.RefreshChildCache ();
                 }
             }
         }
+
         public RectTransform Rect => _rect;
         public SizeModes SizeMode => m_sizing;
 
@@ -52,46 +58,60 @@ namespace Poke.UI
             public SizingMode y;
         }
 
-        protected virtual void Awake() {
-            _rect = GetComponent<RectTransform>();
-            
+        protected virtual void Awake ()
+        {
+            _rect = GetComponent<RectTransform> ();
+
             // parent will always exist EXCEPT for in prefab editing
             // (bc Canvas has a RectTransform)
-            if(transform.parent) {
-                _parentRect = transform.parent.GetComponent<RectTransform>();
+            if (transform.parent)
+            {
+                _parentRect = transform.parent.GetComponent<RectTransform> ();
             }
+
             _parentSize = _parentRect ? _parentRect.rect.size : default;
         }
 
-        protected virtual void OnEnable() {
-            if(transform.parent) {
-                _parent = transform.parent.GetComponent<Layout>();
-                if(_parent) {
-                    _parent.RefreshChildCache();
+        protected virtual void OnEnable ()
+        {
+            if (transform.parent)
+            {
+                _parent = transform.parent.GetComponent<Layout> ();
+                if (_parent)
+                {
+                    _parent.RefreshChildCache ();
                 }
             }
         }
 
-        protected virtual void OnDisable() {
-            if(_parent) {
-                _parent.RefreshChildCache();
+        protected virtual void OnDisable ()
+        {
+            if (_parent)
+            {
+                _parent.RefreshChildCache ();
             }
         }
 
-        public virtual void Update() {
+        public virtual void Update ()
+        {
             // Do grow sizing here if parent is not a Layout
             // Grow does nothing if there is no parent (prefab editing)
-            if(!_parent && _parentRect) {
+            if (!_parent && _parentRect)
+            {
                 // only update size if parent size has changed
-                if(m_sizing.x == SizingMode.Grow && !Mathf.Approximately(_parentRect.rect.size.x, _parentSize.x)) {
-                    _rect.SetSizeWithCurrentAnchors(RectTransform.Axis.Horizontal, _parentRect.rect.size.x);
-                    _parentSize = _parentSize.With(x: _parentRect.rect.size.x);
+                if (m_sizing.x == SizingMode.Grow && !Mathf.Approximately (_parentRect.rect.size.x, _parentSize.x))
+                {
+                    _rect.SetSizeWithCurrentAnchors (RectTransform.Axis.Horizontal, _parentRect.rect.size.x);
+                    _parentSize = _parentSize.SetX (_parentRect.rect.size.x);
+                    // Debug.Log ($"{name} X: {_parentRect.rect.size.x}");
                 }
-                if(m_sizing.y == SizingMode.Grow && !Mathf.Approximately(_parentRect.rect.size.y, _parentSize.y)) {
-                    _rect.SetSizeWithCurrentAnchors(RectTransform.Axis.Vertical, _parentRect.rect.size.y);
-                    _parentSize = _parentSize.With(y: _parentRect.rect.size.y);
+
+                if (m_sizing.y == SizingMode.Grow && !Mathf.Approximately (_parentRect.rect.size.y, _parentSize.y))
+                {
+                    _rect.SetSizeWithCurrentAnchors (RectTransform.Axis.Vertical, _parentRect.rect.size.y);
+                    _parentSize = _parentSize.SetY (_parentRect.rect.size.y);
+                    // Debug.Log ($"{name} Y: {_parentRect.rect.size.y}");
                 }
-                
             }
         }
     }
