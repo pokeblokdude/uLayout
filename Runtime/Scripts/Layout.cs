@@ -49,6 +49,52 @@ namespace Poke.UI
         private int                         _ignoreCount;
         private Vector2                     _lastSize;
         private readonly Vector3[]          _rectCorners = new Vector3[4];
+
+        #region  Getters and Setters
+
+        public Margins GetPadding() => m_padding;
+
+        public LayoutDirection GetDirection() => m_direction;
+        
+        public Justification GetJustification() => m_justifyContent;
+
+        public Alignment GetAlignment() => m_alignContent;
+
+        public float GetSpacing() => m_innerSpacing;
+
+        public bool GetIgnoreChildScale() => m_ignoreChildScale;
+
+        public void SetPadding(Margins padding)
+        {
+            m_padding = padding;
+        }
+
+        public void SetDirection(LayoutDirection direction)
+        {
+            m_direction = direction;
+        }
+
+        public void SetJustification(Justification justification)
+        {
+            m_justifyContent = justification;
+        }
+
+        public void SetAlignment(Alignment alignment)
+        {
+            m_alignContent = alignment;
+        }
+
+        public void SetSpacing(float spacing)
+        {
+            m_innerSpacing = spacing;
+        }
+
+        public void SetIgnoreChildScale(bool ignore)
+        {
+            m_ignoreChildScale = ignore;
+        }
+
+        #endregion
         
         #region TypeDef
         public enum Justification
