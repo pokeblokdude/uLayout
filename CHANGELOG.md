@@ -1,4 +1,7 @@
-﻿## [1.7.1] - 2026-08-07
+﻿## [1.7.2] - 2026-09-25
+
+
+## [1.7.1] - 2026-08-07
 
 ### Fixed
 - Fixed canvas null reference in `LayoutItem` OnDrawGizmosSelected()
