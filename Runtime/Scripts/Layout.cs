@@ -218,7 +218,7 @@ namespace Poke.UI
                     layoutChanged = true;
                 }
                 
-                if(c.rect.rect.size != c.size) {
+                if(!CheckIgnoreElem(c) && c.rect.rect.size != c.size) {
                     layoutChanged = true;
                 }
 

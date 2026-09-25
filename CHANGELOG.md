@@ -1,4 +1,10 @@
-﻿## [1.7.1] - 2026-08-07
+﻿## [1.7.2] - 2026-09-25
+
+### Fixed
+- Added `ILayoutElement` max width/height properties in Unity 6.6+ - shoutout @IbrahimOezhan
+- Fixed layout being dirtied by ignored child resizing - shoutout @MStankovic114
+
+## [1.7.1] - 2026-08-07
 
 ### Fixed
 - Fixed canvas null reference in `LayoutItem` OnDrawGizmosSelected()
