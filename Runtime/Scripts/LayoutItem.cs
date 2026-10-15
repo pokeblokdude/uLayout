@@ -12,6 +12,7 @@
     copies or substantial portions of the Software.
 */
 using System;
+using System.Collections;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -116,11 +117,8 @@ namespace Poke.UI
         protected DrivenTransformProperties _trackerProps;
         protected Layout _parent;
         protected bool _dirty = true;
-        protected int _frame;
         protected readonly Vector3[] _rectCorners = new Vector3[4];
 
-        private RectTransform _parentRect;
-        private Vector2 _parentSize;
         private Canvas _canvas;
 
 		private Canvas Canvas => _canvas ? _canvas : _canvas = GetComponentInParent<Canvas>();
@@ -141,50 +139,52 @@ namespace Poke.UI
             _rect = GetComponent<RectTransform>();
             _canvas = GetComponentInParent<Canvas>();
             _tracker = new DrivenRectTransformTracker();
-
-            _parentSize = _parentRect ? _parentRect.rect.size : default;
         }
 
         protected virtual void OnEnable() {
-            if(transform.parent) {
-                _parentRect = transform.parent.GetComponent<RectTransform>();
-                _parent = transform.parent.GetComponent<Layout>();
-            }
-            else { Debug.LogError("LayoutItem must be a child of a RectTransform!"); }
-            
-            _trackerProps = DrivenTransformProperties.None;
-            
-			_dirty = true;
-			if(_parent) _parent.RefreshChildCache();
+            FindParent();
+            RefreshTracker();
+
+            _dirty = true;
+            if(_parent) _parent.RefreshChildCache();
+            else SetDirty();
         }
 
-        public virtual void Update() {
-            //Log("update");
-            _frame = Time.frameCount;
-
+        protected virtual void OnDisable() {
 #if UNITY_EDITOR
             _tracker.Clear();
-            _trackerProps = DrivenTransformProperties.None;
+#endif
+            if(_parent) _parent.SetDirty();
+        }
 
-            SetDrivenProperties();
+        protected virtual void OnTransformParentChanged() {
+            if(!isActiveAndEnabled)
+                return;
 
-            _tracker.Add(this, _rect, _trackerProps);
+            FindParent();
+            RefreshTracker();
+            if(_parent) _parent.RefreshChildCache();
+            else SetDirty();
+        }
+
+        // a child's resize reaches only itself (OnChildRectTransformDimensionsChange is not sent to MonoBehaviours),
+        // so every item reports its own; during a rebuild the resize is the layout's own doing
+        protected virtual void OnRectTransformDimensionsChange() {
+            if(_parent && !CanvasUpdateRegistry.IsRebuildingLayout())
+                MarkForRebuild();
+        }
+
+        protected virtual void OnDidApplyAnimationProperties() {
+            SetDirty();
+        }
+
+#if UNITY_EDITOR
+        protected virtual void OnValidate() {
+            if(_rect && isActiveAndEnabled)
+                MarkDirty();
+        }
 #endif
 
-            // Do grow sizing here if parent is not a Layout
-            if(!_parent && _parentRect) {
-                // only update size if parent size has changed
-                if(m_sizing.x == SizingMode.Grow && !Mathf.Approximately(_parentRect.rect.size.x, _parentSize.x)) {
-                    _rect.SetSizeWithCurrentAnchors(RectTransform.Axis.Horizontal, _parentRect.rect.size.x);
-                    _parentSize = _parentSize.SetX(_parentRect.rect.size.x);
-                }
-                if(m_sizing.y == SizingMode.Grow && !Mathf.Approximately(_parentRect.rect.size.y, _parentSize.y)) {
-                    _rect.SetSizeWithCurrentAnchors(RectTransform.Axis.Vertical, _parentRect.rect.size.y);
-                    _parentSize = _parentSize.SetY(_parentRect.rect.size.y);
-                }
-            }
-        }
-        
         protected virtual void OnDrawGizmosSelected() {
             _rect.GetWorldCorners(_rectCorners);
 
@@ -206,7 +206,56 @@ namespace Poke.UI
         #endregion
 
         private void Log(object msg) {
-            if(m_log) Debug.Log($"[{_frame}] [LI:{gameObject.name}]: {msg}");
+            if(m_log) Debug.Log($"[{Time.frameCount}] [LI:{gameObject.name}]: {msg}");
+        }
+
+        private void FindParent() {
+            _parent = transform.parent ? transform.parent.GetComponent<Layout>() : null;
+            if(!transform.parent) Debug.LogError("LayoutItem must be a child of a RectTransform!");
+        }
+
+        protected virtual void RefreshTracker() {
+#if UNITY_EDITOR
+            _tracker.Clear();
+            _trackerProps = DrivenTransformProperties.None;
+            SetDrivenProperties();
+            _tracker.Add(this, _rect, _trackerProps);
+#endif
+        }
+
+        // outside a Layout a growing item fills its parent through its anchors, so Unity keeps it filled
+        protected void ApplyGrowOutsideLayout() {
+            if(_parent)
+                return;
+
+            if(m_sizing.x == SizingMode.Grow && (_rect.anchorMin.x != 0 || _rect.anchorMax.x != 1 || _rect.offsetMin.x != 0 || _rect.offsetMax.x != 0)) {
+                _rect.anchorMin = _rect.anchorMin.SetX(0);
+                _rect.anchorMax = _rect.anchorMax.SetX(1);
+                _rect.offsetMin = _rect.offsetMin.SetX(0);
+                _rect.offsetMax = _rect.offsetMax.SetX(0);
+            }
+            if(m_sizing.y == SizingMode.Grow && (_rect.anchorMin.y != 0 || _rect.anchorMax.y != 1 || _rect.offsetMin.y != 0 || _rect.offsetMax.y != 0)) {
+                _rect.anchorMin = _rect.anchorMin.SetY(0);
+                _rect.anchorMax = _rect.anchorMax.SetY(1);
+                _rect.offsetMin = _rect.offsetMin.SetY(0);
+                _rect.offsetMax = _rect.offsetMax.SetY(0);
+            }
+        }
+
+        protected void MarkForRebuild() {
+            if(!isActiveAndEnabled)
+                return;
+
+            // a rebuild must not re-enter itself, so a change made during one is laid out next frame (as uGUI's LayoutGroup does)
+            if(CanvasUpdateRegistry.IsRebuildingLayout())
+                StartCoroutine(DelayedMarkForRebuild());
+            else
+                LayoutRebuilder.MarkLayoutForRebuild(_rect);
+        }
+
+        private IEnumerator DelayedMarkForRebuild() {
+            yield return null;
+            LayoutRebuilder.MarkLayoutForRebuild(_rect);
         }
         
         // claim only what something sets: Unity serializes a claimed value as zero
@@ -217,19 +266,32 @@ namespace Poke.UI
             if((m_sizing.y == SizingMode.FitContent && FitsItsContent) || (m_sizing.y == SizingMode.Grow && grownByLayout))
                 _trackerProps |= DrivenTransformProperties.SizeDeltaY;
 
+            if(!_parent && m_sizing.x == SizingMode.Grow)
+                _trackerProps |= DrivenTransformProperties.AnchorMinX | DrivenTransformProperties.AnchorMaxX | DrivenTransformProperties.AnchoredPositionX;
+            if(!_parent && m_sizing.y == SizingMode.Grow)
+                _trackerProps |= DrivenTransformProperties.AnchorMinY | DrivenTransformProperties.AnchorMaxY | DrivenTransformProperties.AnchoredPositionY;
+
             if(_parent && !m_ignoreLayout) 
                 _trackerProps |= DrivenTransformProperties.AnchoredPosition | DrivenTransformProperties.Anchors;
         }
 
         public virtual void SetDirty() {
-            _dirty = true;
-            if(_parent) {
-                _parent.SetDirty();
+            if(isActiveAndEnabled) {
+                RefreshTracker();
+                ApplyGrowOutsideLayout();
             }
+            MarkDirty();
+        }
+
+        protected void MarkDirty() {
+            _dirty = true;
+            MarkForRebuild();
         }
 
         public virtual void CalculateLayoutInputHorizontal() {
             Log("<color=white>CalculateLayoutInputHorizontal</color>");
+            RefreshTracker();
+            ApplyGrowOutsideLayout();
         }
 
         public virtual void CalculateLayoutInputVertical() {

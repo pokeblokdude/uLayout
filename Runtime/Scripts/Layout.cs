@@ -134,7 +134,6 @@ namespace Poke.UI
         private Vector2Int                  _growChildCount;
         private int                         _ignoreCount;
         private Vector2                     _innerSize;
-        private Vector2                     _lastSize;
         private readonly List<LineInfo>     _lines = new();
         private bool                        _precalcYSize;
         
@@ -194,88 +193,18 @@ namespace Poke.UI
             RefreshChildCache();
         }
 
-        public override void Update() {
-            base.Update();
-
-            bool layoutChanged = _dirty;
-            bool needsCacheRefresh = false;
-
-            // check for changes in children
-            foreach(ChildInfo c in _children) {
-                if(!c.rect) {
-                    layoutChanged = true;
-                    needsCacheRefresh = true;
-                    continue;
-                }
-
-                // check if child index has changed
-                if(c.rect.GetSiblingIndex() != c.index) {
-                    layoutChanged = true;
-                    needsCacheRefresh = true;
-                }
-
-                // check if item was disabled this frame
-                if(c.rect.gameObject.activeInHierarchy != c.enabled) {
-                    c.enabled = c.rect.gameObject.activeInHierarchy;
-                    layoutChanged = true;
-                }
-                
-                if(!CheckIgnoreElem(c) && c.rect.rect.size != c.size) {
-                    layoutChanged = true;
-                }
-
-                if(c.li) {
-                    // check if ignore layout toggled this frame
-                    if(c.li.IgnoreLayout != c.ignoreLayout) {
-                        c.ignoreLayout = c.li.IgnoreLayout;
-                        layoutChanged = true;
-                    }
-
-                    if(c.li.Margins != c.margins) {
-                        c.margins = c.li.Margins;
-                        layoutChanged = true;
-                    }
-
-                    if(c.li.Sizing.x != c.sizingX) {
-                        c.sizingX = c.li.Sizing.x;
-                        layoutChanged = true;
-                    }
-                    
-                    if(c.li.Sizing.y != c.sizingY) {
-                        c.sizingY = c.li.Sizing.y;
-                        layoutChanged = true;
-                    }
-                }
-                else {
-                    _tracker.Add(
-                        this,
-                        c.rect,
-                        DrivenTransformProperties.AnchoredPosition | DrivenTransformProperties.Anchors
-                    );
-                }
-            }
-
-            // check if the container changed this frame
-            if(!Mathf.Approximately(_lastSize.x, _rect.rect.size.x) || !Mathf.Approximately(_lastSize.y, _rect.rect.size.y)) {
-                layoutChanged = true;
-            }
-            // check if any children were added/removed this frame
-            if(transform.childCount != _children.Count) {
-                layoutChanged = true;
-                needsCacheRefresh = true;
-            }
-
-            if(layoutChanged) {
-                SetDirty();
-                Log("marking for rebuild");
-                LayoutRebuilder.MarkLayoutForRebuild(_rect);
-                if(needsCacheRefresh)
-                    RefreshChildCache();
-            }
-
-            _lastSize = _rect.rect.size;
+        protected virtual void OnTransformChildrenChanged() {
+            RefreshChildCache();
         }
-        
+
+        protected override void OnRectTransformDimensionsChange() {
+            base.OnRectTransformDimensionsChange();
+
+            // a root layout lays out its children again when it is resized from outside
+            if(!_parent && _rect && !CanvasUpdateRegistry.IsRebuildingLayout())
+                MarkDirty();
+        }
+
         protected override void OnDrawGizmosSelected() {
             base.OnDrawGizmosSelected();
 
@@ -293,7 +222,11 @@ namespace Poke.UI
 
         #region ILayoutGroup
         public override void CalculateLayoutInputHorizontal() {
-            if(!_dirty) return;
+            // a layout only takes part in a rebuild when something in its tree changed, so it always lays out in full
+            _dirty = true;
+            SyncChildCache();
+            RefreshTracker();
+            ApplyGrowOutsideLayout();
             
 #if UNITY_EDITOR
             RefreshedThisFrame.Add(this);
@@ -389,8 +322,6 @@ namespace Poke.UI
         }
 
         public override void CalculateLayoutInputVertical() {
-            if(!_dirty) return;
-            
             Log("<color=white>CalculateLayoutInputVertical</color>");
             
             _growChildCount.y = 0;
@@ -476,8 +407,6 @@ namespace Poke.UI
         }
 
         public void SetLayoutHorizontal() {
-            if(!_dirty) return;
-            
             Log("<color=white>SetLayoutHorizontal</color>");
             
             if(m_wrap && _lines.Count > 0) {
@@ -496,8 +425,6 @@ namespace Poke.UI
         }
 
         public void SetLayoutVertical() {
-            if(!_dirty) return;
-            
             Log("<color=white>SetLayoutVertical</color>");
             
             if(m_wrap && _lines.Count > 0) {
@@ -535,7 +462,7 @@ namespace Poke.UI
 
         #region Layout Helpers
         private void Log(object msg) {
-            if(m_log) Debug.Log($"[{_frame}] [L:{gameObject.name}]: {msg}");
+            if(m_log) Debug.Log($"[{Time.frameCount}] [L:{gameObject.name}]: {msg}");
         }
         
         private bool CheckIgnoreElem(ChildInfo ci) {
@@ -1730,6 +1657,21 @@ namespace Poke.UI
         }
 
         public void RefreshChildCache() {
+            RebuildChildCache();
+            SetDirty();
+        }
+
+        protected override void RefreshTracker() {
+            base.RefreshTracker();
+#if UNITY_EDITOR
+            foreach(ChildInfo c in _children) {
+                if(c.rect && !c.li)
+                    _tracker.Add(this, c.rect, DrivenTransformProperties.AnchoredPosition | DrivenTransformProperties.Anchors);
+            }
+#endif
+        }
+
+        private void RebuildChildCache() {
             _children.Clear();
             _lines.Clear();
 
@@ -1743,23 +1685,44 @@ namespace Poke.UI
                 LayoutItem li = rt.GetComponent<LayoutItem>();
                 
                 Log($"Adding child \"{rt.name}\" - size: {rt.rect.size}, layoutitem: {li != null}");
-                
-                _children.Add(
-                    new ChildInfo
-                    {
-                        index = i,
-                        rect = rt,
-                        li = li,
-                        margins = li ? li.Margins : default,
-                        size = rt.rect.size * (m_ignoreChildScale ? Vector2.one : rt.localScale),
-                        enabled = rt.gameObject.activeInHierarchy,
-                        ignoreLayout = li && li.IgnoreLayout,
-                    }
-                );
+
+                ChildInfo c = new ChildInfo
+                {
+                    index = i,
+                    rect = rt,
+                    li = li,
+                    size = rt.rect.size * (m_ignoreChildScale ? Vector2.one : rt.localScale),
+                };
+                ReadChild(c);
+                _children.Add(c);
+            }
+        }
+
+        // brings every cached child up to date before a layout pass; a change of children rebuilds the cache
+        private void SyncChildCache() {
+            bool stale = transform.childCount != _children.Count;
+            foreach(ChildInfo c in _children) {
+                if(!c.rect || c.rect.parent != transform || c.rect.GetSiblingIndex() != c.index) {
+                    stale = true;
+                    break;
+                }
             }
 
-			SetDirty();
-            LayoutRebuilder.MarkLayoutForRebuild(_rect);
+            if(stale) {
+                RebuildChildCache();
+                return;
+            }
+
+            foreach(ChildInfo c in _children)
+                ReadChild(c);
+        }
+
+        private static void ReadChild(ChildInfo c) {
+            c.enabled = c.rect.gameObject.activeInHierarchy;
+            c.ignoreLayout = c.li && c.li.IgnoreLayout;
+            c.margins = c.li ? c.li.Margins : default;
+            c.sizingX = c.li ? c.li.Sizing.x : default;
+            c.sizingY = c.li ? c.li.Sizing.y : default;
         }
     }
 }

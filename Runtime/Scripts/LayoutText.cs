@@ -11,7 +11,6 @@
     The above copyright notice and this permission notice shall be included in all
     copies or substantial portions of the Software.
 */
-using System;
 using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
@@ -19,13 +18,10 @@ using UnityEngine.UI;
 namespace Poke.UI
 {
     [RequireComponent(typeof(TMP_Text))]
-    public class LayoutText : LayoutItem
+    public class LayoutText : LayoutItem, ILayoutSelfController
     {
         private TMP_Text _text;
         private Vector2 _preferredSize;
-        private float _fontSize;
-        private string _str;
-        private bool _textChanged;
 
         protected override void Awake() {
             base.Awake();
@@ -35,38 +31,22 @@ namespace Poke.UI
         protected override void OnEnable() {
             base.OnEnable();
 
-            _str = _text.text;
-            _fontSize = _text.fontSize;
-            _text.ForceMeshUpdate(true, true);
-
-            _preferredSize = _text.GetPreferredValues();
+            // TMP raises this on every change that affects its size: text, font asset, font size, style, wrapping, margins
+            _text.RegisterDirtyLayoutCallback(OnTextLayoutDirty);
         }
 
-        public override void Update() {
-            base.Update();
+        protected override void OnDisable() {
+            _text.UnregisterDirtyLayoutCallback(OnTextLayoutDirty);
+            base.OnDisable();
+        }
 
-            // _text.textWrappingMode = m_sizing.x != SizingMode.FitContent ? TextWrappingModes.Normal : TextWrappingModes.NoWrap;
+        private void OnTextLayoutDirty() {
+            // during a rebuild the change is the layout resizing this text, which it measures itself
+            if(CanvasUpdateRegistry.IsRebuildingLayout())
+                return;
 
-            if(String.CompareOrdinal(_str, _text.text) != 0) {
-                _str = _text.text;
-                SetDirty();
-                _textChanged = true;
-            }
-
-            if(!Mathf.Approximately(_text.fontSize, _fontSize)) {
-                _fontSize = _text.fontSize;
-                SetDirty();
-            }
-
-            if(_dirty) {
-                Log("Marking for rebuild");
-                if(_parent)
-                    LayoutRebuilder.MarkLayoutForRebuild(_rect);
-                else {
-                    CalculateLayoutInputHorizontal();
-                    CalculateLayoutInputVertical();
-                }
-            }
+            Log("text changed");
+            SetDirty();
         }
 
         protected override void SetDrivenProperties() {
@@ -81,13 +61,15 @@ namespace Poke.UI
         }
 
         private void Log(object msg) {
-            if(m_log) Debug.Log($"[{_frame}] [LT:{gameObject.name}]: {msg}");
+            if(m_log) Debug.Log($"[{Time.frameCount}] [LT:{gameObject.name}]: {msg}");
         }
         
         public override void CalculateLayoutInputHorizontal() {
+            RefreshTracker();
+            ApplyGrowOutsideLayout();
+
             if(_dirty) {
                 Log("<color=white>CalculateLayoutInputHorizontal</color>");
-                _text.ForceMeshUpdate(true, _textChanged);
                 _preferredSize = _text.GetPreferredValues();
 
                 float size = _preferredSize.x;
@@ -114,8 +96,12 @@ namespace Poke.UI
             }
 
             _dirty = false;
-            _textChanged = false;
         }
+
+        // sizes are set while calculating the layout input, so there is nothing left to control
+        public void SetLayoutHorizontal() { }
+
+        public void SetLayoutVertical() { }
 
         public void HandleGrowSizingX() {
             if(m_sizing.y == SizingMode.FitContent) {
