@@ -120,8 +120,9 @@ namespace Poke.UI
         private int                         _ignoreCount;
         private Vector2                     _innerSize;
         private readonly List<LineInfo>     _lines = new();
-        private bool                        _precalcYSize;
+        private Vector2                     _unwrappedSize;
         private bool                        _refreshCache;
+        private const float                 FitTolerance = 0.01f;
         
         #region TypeDef
         public enum Justification
@@ -230,7 +231,6 @@ namespace Poke.UI
             _growChildCount.x = 0;
             _ignoreCount = 0;
             _innerSize = Vector2.zero;
-            _precalcYSize = false;
             
             Log("<color=white>Reading child info</color>");
             foreach(ChildInfo c in _children) {
@@ -242,7 +242,7 @@ namespace Poke.UI
             
             Log("<color=white>Calculating horizontal content size</color>");
             if(_children.Count > 0) {
-                float primarySize = m_justifyContent == Justification.SpaceBetween ? 0 : m_innerSpacing * (_children.Count - _ignoreCount - 1);
+                float primarySize = m_justifyContent == Justification.SpaceBetween ? 0 : m_innerSpacing * Mathf.Max(0, _children.Count - _ignoreCount - 1);
                 float crossSize = 0;
 
                 // calculate content size
@@ -295,26 +295,14 @@ namespace Poke.UI
             }
             
             Log($"x size: {_contentSize.x}");
-            
-            // apply fit sizing X
-            if(m_sizing.x == SizingMode.FitContent) {
-                float size = _contentSize.x + m_padding.left + m_padding.right;
-                if(m_useMaxWidth) size = Mathf.Min(m_maxWidth, size);
-                if(m_useMinWidth) size = Mathf.Max(m_minWidth, size);
-                
-                Log($"fitting horizontally - {size} ({_contentSize.x} content + {m_padding.left+m_padding.right} padding)");
-                
-                _rect.SetSizeWithCurrentAnchors(
-                    RectTransform.Axis.Horizontal,
-                    size
-                );
-            }
-            
-            _innerSize.x = _rect.rect.size.x - m_padding.left - m_padding.right;
-            Log($"calculated rect x size: {_rect.rect.size.x:f3}, inner: {_innerSize.x}");
+            FitWidth();
 
+            _lines.Clear();
+            _unwrappedSize.x = _contentSize.x;
             if(IsRowDirection() && m_wrap && _contentSize.x > _innerSize.x) {
-                PackLines();
+                PackLines(0, _innerSize.x);
+                _contentSize.x = LongestLine();
+                FitWidth();
             }
         }
 
@@ -328,10 +316,15 @@ namespace Poke.UI
             }
             
             _growChildCount.y = 0;
-            
+
+            // wrapped rows broke their lines in the horizontal pass, and take their heights from their children now that those measured theirs
+            bool wrappedRows = IsRowDirection() && _lines.Count > 0;
+            if(wrappedRows)
+                MeasureLineHeights();
+
             Log("<color=white>Calculating vertical content size</color>");
-            if(_children.Count > 0 && !_precalcYSize) {
-                float primarySize = m_justifyContent == Justification.SpaceBetween ? 0 : m_innerSpacing * (_children.Count - _ignoreCount - 1);
+            if(_children.Count > 0 && !wrappedRows) {
+                float primarySize = m_justifyContent == Justification.SpaceBetween ? 0 : m_innerSpacing * Mathf.Max(0, _children.Count - _ignoreCount - 1);
                 float crossSize = 0;
 
                 // calculate content size
@@ -378,49 +371,38 @@ namespace Poke.UI
                         break;
                 }
             }
-            else if(!_precalcYSize) {
+            else if(!wrappedRows) {
                 _contentSize = Vector2.zero;
             }
             Log($"y size: {_contentSize.y}");
+            FitHeight();
 
-            if(_precalcYSize) {
-                Log("skipping vertical measurements - precalculated during line packing");
-            }
-
-            // apply fit sizing Y
-            if(m_sizing.y == SizingMode.FitContent) {
-                float size = _contentSize.y + m_padding.top + m_padding.bottom;
-                if(m_useMaxHeight) size = Mathf.Min(m_maxHeight, size);
-                if(m_useMinHeight) size = Mathf.Max(m_minHeight, size);
-                
-                Log($"fitting vertically - {size} ({_contentSize.y} content + {m_padding.top+m_padding.bottom} padding)");
-                
-                _rect.SetSizeWithCurrentAnchors(
-                    RectTransform.Axis.Vertical,
-                    size
-                );
-            }
-
-            _innerSize.y = _rect.rect.size.y - m_padding.top - m_padding.bottom;
-
+            _unwrappedSize.y = _contentSize.y;
             if(!IsRowDirection() && m_wrap && _contentSize.y > _innerSize.y) {
-                PackColumns();
+                PackLines(1, _innerSize.y);
+                _contentSize.y = LongestLine();
+                _contentSize.x = LinesCrossSize();
+                FitHeight();
+                FitWidth();
             }
         }
 
         public void SetLayoutHorizontal() {
             if(_refresh > 0 || _children.Count == 0) return;
             Log("<color=green>SetLayoutHorizontal</color>");
-            
+
+            // a wrapped column knows its columns only once its children measured their heights, so it lays out horizontally in SetLayoutVertical
+            if(m_wrap && !IsRowDirection())
+                return;
+
+            if(m_wrap)
+                BreakLinesAtWidth();
+
             if(m_wrap && _lines.Count > 0) {
-                if(IsRowDirection()) {
-                    GrowChildrenHorizontalWrapped(_contentSize.x);
-                    foreach(LineInfo line in _lines) {
-                        HorizontalLayout(line.firstItemIdx, line.lastItemIdx, line.crossSize, line.primarySize, line.ignoreCount);
-                    }
+                GrowChildrenHorizontalWrapped(_contentSize.x);
+                foreach(LineInfo line in _lines) {
+                    HorizontalLayout(line.firstItemIdx, line.lastItemIdx, line.crossSize, line.primarySize, line.ignoreCount);
                 }
-                // else: deffer horizontal layout -
-                // vertical wrap requires calculating vertical sizes BEFORE horizontal layout
             }
             else {
                 GrowChildrenHorizontal();
@@ -431,6 +413,9 @@ namespace Poke.UI
         public void SetLayoutVertical() {
             if(_refresh-1 > 0 || _children.Count == 0) return;
             Log("<color=green>SetLayoutVertical</color>");
+
+            if(!IsRowDirection() && m_wrap)
+                BreakColumnsAtHeight();
             
             if(m_wrap && _lines.Count > 0) {
                 GrowChildrenVerticalWrapped(_contentSize.y);
@@ -456,6 +441,10 @@ namespace Poke.UI
                 }
             }
             else {
+                if(m_wrap && !IsRowDirection()) {
+                    GrowChildrenHorizontal();
+                    HorizontalLayout(0, _children.Count-1, _contentSize.x, _contentSize.x, _ignoreCount);
+                }
                 GrowChildrenVertical();
                 VerticalLayout(0, _children.Count-1, _contentSize.y, _contentSize.y, _ignoreCount);
             }
@@ -1189,281 +1178,159 @@ namespace Poke.UI
             }
         }
         
-        private void PackLines() {
-            _lines.Clear();
-
-            LineInfo line = new LineInfo { firstItemIdx = 0 };
-            
-            float cursor = 0;
-            int lineIndex = 0;
-            bool newLine = true;
-            
-            foreach(ChildInfo c in _children) {
-                if(c.ignore) {
-                    line.ignoreCount++;
-                    continue;
-                }
-
-                bool grow = c.li && c.li.Sizing.x == SizingMode.Grow;
-                bool crossGrow = c.li && c.li.Sizing.y == SizingMode.Grow;
-
-                // Grow child: occupies a line on its own. If current active line is not empty, close it first,
-                // take grow to a new line and close immediately. Thus grow takes ownership of the entire line.
-                if(grow) {
-                    if(line.firstItemIdx == c.index) {
-                        line.lastItemIdx = c.index;
-                        c.lineIndex = lineIndex;
-                        _lines.Add(line);
-                        lineIndex++;
-                        line = new LineInfo { firstItemIdx = c.index+1 };
-                    }
-                    else {
-                        _lines.Add(line);
-                        lineIndex++;
-                        line = new LineInfo {
-                            firstItemIdx = c.index,
-                            lastItemIdx = c.index,
-                            itemCount = 1,
-                            primarySize = 0,
-                            crossSize = crossGrow ? 0 : c.size.y + c.margins.top + c.margins.bottom
-                        };
-                        c.lineIndex = lineIndex;
-                        _lines.Add(line);
-                        lineIndex++;
-                        line = new LineInfo { firstItemIdx = c.index+1 };
-                    }
-
-                    cursor = 0;
-                    continue;
-                }
-
-                float childH = c.size.x + c.margins.left + c.margins.right;
-                float childV = crossGrow ? 0 : c.size.y + c.margins.top + c.margins.bottom;
-                
-                float candidate = childH + 
-                                  (newLine || c.index == _children.Count-1 || m_justifyContent == Justification.SpaceBetween ? 0 : m_innerSpacing);
-
-                if(cursor + candidate > _innerSize.x) {
-                    // this element is the first item AND too big
-                    if(line.firstItemIdx == c.index) {
-                        line.itemCount = 1;
-                        line.primarySize = _innerSize.x;
-                        line.crossSize = childV;
-                        line.lastItemIdx = c.index;
-                        c.lineIndex = lineIndex;
-                        _lines.Add(line);
-                        lineIndex++;
-                        line = new LineInfo { firstItemIdx = c.index+1 };
-                        cursor = 0;
-                        newLine = true;
-                    }
-                    // this element runs off the end of the line normally
-                    else {
-                        if(lineIndex != 0 && m_justifyContent != Justification.SpaceBetween) line.primarySize -= m_innerSpacing;
-                        _lines.Add(line);
-                        lineIndex++;
-                        line = new LineInfo {
-                            firstItemIdx = c.index,
-                            lastItemIdx = c.index,
-                            itemCount = 1,
-                            primarySize = candidate,
-                            crossSize = childV
-                        };
-                        c.lineIndex = lineIndex;
-                        cursor = candidate;
-                        newLine = false;
-                    }
-                }
-                else {
-                    c.lineIndex = lineIndex;
-                    line.lastItemIdx = c.index;
-                    line.primarySize += candidate;
-                    line.crossSize = Mathf.Max(line.crossSize, childV);
-                    line.itemCount++;
-                    cursor += candidate;
-                    newLine = false;
-                }
-            }
-            
-            _lines.Add(line);
-
-            Log($"packed {_lines.Count} lines");
-            int index = 0;
-            // foreach(LineInfo l in _lines) {
-            //     Log($"line {index}: {l.itemCount} items - {l.primarySize}, {l.crossSize}");
-            //     index++;
-            // }
-            
-            
-            float maxLineSize = 0;
-            foreach(LineInfo l in _lines) {
-                maxLineSize = Mathf.Max(maxLineSize, l.primarySize);
-            }
-            _contentSize.x = maxLineSize;
-
-            float total = 0;
-            index = 0;
-            foreach(LineInfo l in _lines) {
-                total += l.crossSize + (index == _lines.Count - 1 ? 0 : m_lineSpacing);
-                index++;
-            }
-            Log($"total line height: {total}");
-            _contentSize.y = total;
-            _precalcYSize = true;
-            
-            // apply fit sizing X
+        private void FitWidth() {
             if(m_sizing.x == SizingMode.FitContent) {
                 float size = _contentSize.x + m_padding.left + m_padding.right;
                 if(m_useMaxWidth) size = Mathf.Min(m_maxWidth, size);
                 if(m_useMinWidth) size = Mathf.Max(m_minWidth, size);
-                
-                _rect.SetSizeWithCurrentAnchors(
-                    RectTransform.Axis.Horizontal,
-                    size
-                );
+
+                Log($"fitting horizontally - {size} ({_contentSize.x} content + {m_padding.left+m_padding.right} padding)");
+                _rect.SetSizeWithCurrentAnchors(RectTransform.Axis.Horizontal, size);
             }
+
+            _innerSize.x = _rect.rect.size.x - m_padding.left - m_padding.right;
         }
 
-        private void PackColumns() {
-            _lines.Clear();
-
-            LineInfo line = new LineInfo { firstItemIdx = 0 };
-            
-            float cursor = 0;
-            int lineIndex = 0;
-            bool newLine = true;
-            
-            foreach(ChildInfo c in _children) {
-                if(c.ignore) {
-                    line.ignoreCount++;
-                    continue;
-                }
-
-                bool grow = c.li && c.li.Sizing.y == SizingMode.Grow;
-                bool crossGrow = c.li && c.li.Sizing.x == SizingMode.Grow;
-
-                // Grow child: occupies a line on its own. If current active line is not empty, close it first,
-                // take grow to a new line and close immediately. Thus grow takes ownership of the entire line.
-                if(grow) {
-                    if(line.firstItemIdx == c.index) {
-                        line.lastItemIdx = c.index;
-                        c.lineIndex = lineIndex;
-                        _lines.Add(line);
-                        lineIndex++;
-                        line = new LineInfo { firstItemIdx = c.index+1 };
-                    }
-                    else {
-                        _lines.Add(line);
-                        lineIndex++;
-                        line = new LineInfo {
-                            firstItemIdx = c.index,
-                            lastItemIdx = c.index,
-                            itemCount = 1,
-                            primarySize = 0,
-                            crossSize = crossGrow ? 0 : c.size.x + c.margins.left + c.margins.right
-                        };
-                        c.lineIndex = lineIndex;
-                        _lines.Add(line);
-                        lineIndex++;
-                        line = new LineInfo { firstItemIdx = c.index+1 };
-                    }
-
-                    cursor = 0;
-                    continue;
-                }
-
-                float childH = crossGrow ? 0 : c.size.x + c.margins.left + c.margins.right;
-                float childV = c.size.y + c.margins.top + c.margins.bottom;
-                
-                float candidate = childV + 
-                                  (newLine || c.index == _children.Count-1 || m_justifyContent == Justification.SpaceBetween ? 0 : m_innerSpacing);
-
-                if(cursor + candidate > _innerSize.y) {
-                    // this element is the first item AND too big
-                    if(line.firstItemIdx == c.index) {
-                        line.itemCount = 1;
-                        line.primarySize = _innerSize.y;
-                        line.crossSize = childH;
-                        line.lastItemIdx = c.index;
-                        c.lineIndex = lineIndex;
-                        _lines.Add(line);
-                        lineIndex++;
-                        line = new LineInfo { firstItemIdx = c.index+1 };
-                        cursor = 0;
-                        newLine = true;
-                    }
-                    // this element runs off the end of the line normally
-                    else {
-                        if(lineIndex != 0 && m_justifyContent != Justification.SpaceBetween) line.primarySize -= m_innerSpacing;
-                        _lines.Add(line);
-                        lineIndex++;
-                        line = new LineInfo {
-                            firstItemIdx = c.index,
-                            lastItemIdx = c.index,
-                            itemCount = 1,
-                            primarySize = candidate,
-                            crossSize = childH
-                        };
-                        c.lineIndex = lineIndex;
-                        cursor = candidate;
-                        newLine = false;
-                    }
-                }
-                else {
-                    c.lineIndex = lineIndex;
-                    line.lastItemIdx = c.index;
-                    line.primarySize += candidate;
-                    line.crossSize = Mathf.Max(line.crossSize, childH);
-                    line.itemCount++;
-                    cursor += candidate;
-                    newLine = false;
-                }
-            }
-            
-            _lines.Add(line);
-
-            Log($"packed {_lines.Count} columns");
-            int index = 0;
-            // foreach(LineInfo l in _lines) {
-            //     Log($"line {index}: {l.itemCount} items - {l.primarySize}, {l.crossSize}");
-            //     index++;
-            // }
-            
-            float maxLineSize = 0;
-            foreach(LineInfo l in _lines) {
-                maxLineSize = Mathf.Max(maxLineSize, l.primarySize);
-            }
-            _contentSize.y = maxLineSize;
-
-            float total = 0;
-            index = 0;
-            foreach(LineInfo l in _lines) {
-                total += l.crossSize + (index == 0 ? 0 : m_lineSpacing);
-                index++;
-            }
-            _contentSize.x = total;
-
+        private void FitHeight() {
             if(m_sizing.y == SizingMode.FitContent) {
-                float size = _contentSize.y + m_padding.bottom + m_padding.top;
+                float size = _contentSize.y + m_padding.top + m_padding.bottom;
                 if(m_useMaxHeight) size = Mathf.Min(m_maxHeight, size);
                 if(m_useMinHeight) size = Mathf.Max(m_minHeight, size);
-                
+
+                Log($"fitting vertically - {size} ({_contentSize.y} content + {m_padding.top+m_padding.bottom} padding)");
                 _rect.SetSizeWithCurrentAnchors(RectTransform.Axis.Vertical, size);
             }
-            
-            // apply fit sizing X
-            if(m_sizing.x == SizingMode.FitContent) {
-                float size = _contentSize.x + m_padding.left + m_padding.right;
-                if(m_useMaxWidth) size = Mathf.Min(m_maxWidth, size);
-                if(m_useMinWidth) size = Mathf.Max(m_minWidth, size);
-                
-                _rect.SetSizeWithCurrentAnchors(
-                    RectTransform.Axis.Horizontal,
-                    size
-                );
+
+            _innerSize.y = _rect.rect.size.y - m_padding.top - m_padding.bottom;
+        }
+
+        // a growing layout gets its size from its parent only after it measured itself,
+        // so it breaks its lines again at the size it was given
+        private void BreakLinesAtWidth() {
+            float inner = _rect.rect.size.x - m_padding.left - m_padding.right;
+            if(Mathf.Approximately(inner, _innerSize.x))
+                return;
+
+            _innerSize.x = inner;
+            _lines.Clear();
+            _contentSize.x = _unwrappedSize.x;
+            if(_contentSize.x > _innerSize.x) {
+                PackLines(0, _innerSize.x);
+                _contentSize.x = LongestLine();
             }
         }
-        
+
+        private void BreakColumnsAtHeight() {
+            float inner = _rect.rect.size.y - m_padding.top - m_padding.bottom;
+            if(Mathf.Approximately(inner, _innerSize.y))
+                return;
+
+            _innerSize.y = inner;
+            _lines.Clear();
+            _contentSize.x = _unwrappedSize.x;
+            _contentSize.y = _unwrappedSize.y;
+            if(_contentSize.y > _innerSize.y) {
+                PackLines(1, _innerSize.y);
+                _contentSize.y = LongestLine();
+                _contentSize.x = LinesCrossSize();
+            }
+        }
+
+        private void MeasureLineHeights() {
+            for(int i = 0; i < _lines.Count; i++) {
+                LineInfo line = _lines[i];
+                line.crossSize = 0;
+                _lines[i] = line;
+            }
+
+            foreach(ChildInfo c in _children) {
+                if(c.ignore || Grows(c, 1))
+                    continue;
+
+                LineInfo line = _lines[c.lineIndex];
+                line.crossSize = Mathf.Max(line.crossSize, Extent(c, 1));
+                _lines[c.lineIndex] = line;
+            }
+
+            _contentSize.y = LinesCrossSize();
+        }
+
+        // breaks the children into lines along an axis (0: rows, 1: columns), greedily, each no longer than the limit;
+        // an item growing along that axis takes a line of its own
+        private void PackLines(int axis, float limit) {
+            _lines.Clear();
+
+            float spacing = m_justifyContent == Justification.SpaceBetween ? 0 : m_innerSpacing;
+            LineInfo line = default;
+            int ignoredSinceLastItem = 0;
+
+            foreach(ChildInfo c in _children) {
+                if(c.ignore) {
+                    ignoredSinceLastItem++;
+                    continue;
+                }
+
+                bool grow = Grows(c, axis);
+                float size = grow ? 0 : Extent(c, axis);
+                float crossSize = Grows(c, 1 - axis) ? 0 : Extent(c, 1 - axis);
+
+                bool fits = line.itemCount == 0 || (!grow && line.primarySize + spacing + size <= limit + FitTolerance);
+                if(!fits)
+                    CloseLine(ref line);
+
+                if(line.itemCount == 0) {
+                    line = new LineInfo { firstItemIdx = c.index, primarySize = Mathf.Min(size, limit) };
+                }
+                else {
+                    line.primarySize += spacing + size;
+                    line.ignoreCount += ignoredSinceLastItem;
+                }
+                line.lastItemIdx = c.index;
+                line.itemCount++;
+                line.crossSize = Mathf.Max(line.crossSize, crossSize);
+                c.lineIndex = _lines.Count;
+                ignoredSinceLastItem = 0;
+
+                if(grow)
+                    CloseLine(ref line);
+            }
+
+            CloseLine(ref line);
+            Log($"packed {_lines.Count} lines");
+        }
+
+        private void CloseLine(ref LineInfo line) {
+            if(line.itemCount > 0)
+                _lines.Add(line);
+            line = default;
+        }
+
+        private float LongestLine() {
+            float longest = 0;
+            foreach(LineInfo line in _lines) {
+                longest = Mathf.Max(longest, line.primarySize);
+            }
+            return longest;
+        }
+
+        private float LinesCrossSize() {
+            float total = 0;
+            for(int i = 0; i < _lines.Count; i++) {
+                total += _lines[i].crossSize + (i == 0 ? 0 : m_lineSpacing);
+            }
+            return total;
+        }
+
+        private static bool Grows(ChildInfo c, int axis) {
+            return c.li && (axis == 0 ? c.li.Sizing.x : c.li.Sizing.y) == SizingMode.Grow;
+        }
+
+        private static float Extent(ChildInfo c, int axis) {
+            return axis == 0
+                ? c.size.x + c.margins.left + c.margins.right
+                : c.size.y + c.margins.top + c.margins.bottom;
+        }
+
         private void GrowChildrenHorizontalWrapped(float contentWidth) {
             Log("<color=white>GrowChildrenHorizontalWrapped</color>");
             switch(m_direction) {
