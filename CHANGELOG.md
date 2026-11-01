@@ -3,6 +3,8 @@
 ### Fixed
 - Reverted unintended change from v1.8.0: on a `Layout` with no children, setting an axis to FitContent will shrink to zero (plus any padding). This is intended behavior &mdash; to prevent an item from fully shrinking, use the `MinWdith` and `MinHeight` parameters
 - Fixed `Layout` not detecting size changes in plain `RectTransform` children
+- Fixed `LayoutText` with y sizing set to FitContent having a height of 0 on the first layout rebuild after being enabled
+  - `LayoutText` now calculates its preferred size immediately on enable 
 - @fabianboth - Fixed `LayoutText` using outdated vertical size info
 
 ### Changed

@@ -433,6 +433,7 @@ namespace Poke.UI
                         HorizontalLayout(line.firstItemIdx, line.lastItemIdx, line.crossSize, line.primarySize, line.ignoreCount);
                     }
                 }
+                // else: deffer horizontal layout -
                 // vertical wrap requires calculating vertical sizes BEFORE horizontal layout
             }
             else {
@@ -725,7 +726,7 @@ namespace Poke.UI
 
                                 SetAnchorX(c.rect, 0);
 
-                                LayoutColumnAligned(c, offset, columnWidth);
+                                LayoutColumnItemAligned(c, offset, columnWidth);
                             }
                             break;
                         case Alignment.Center:
@@ -738,7 +739,7 @@ namespace Poke.UI
 
                                 SetAnchorX(c.rect, 0.5f);
 
-                                LayoutColumnAligned(c, offset, columnWidth);
+                                LayoutColumnItemAligned(c, offset, columnWidth);
                             }
                             break;
                         case Alignment.End:
@@ -752,7 +753,7 @@ namespace Poke.UI
 
                                 SetAnchorX(c.rect, 1);
 
-                                LayoutColumnAligned(c, offset, columnWidth);
+                                LayoutColumnItemAligned(c, offset, columnWidth);
                             }
                             break;
                     }
@@ -784,7 +785,7 @@ namespace Poke.UI
 
                                 SetAnchorY(c.rect, 1);
 
-                                LayoutRowAligned(c, offset, lineHeight);
+                                LayoutRowItemAligned(c, offset, lineHeight);
                             }
                             break;
                         case Alignment.Center:
@@ -798,7 +799,7 @@ namespace Poke.UI
 
                                 SetAnchorY(c.rect, 0.5f);
 
-                                LayoutRowAligned(c, offset, lineHeight);
+                                LayoutRowItemAligned(c, offset, lineHeight);
                             }
                             break;
                         case Alignment.End:
@@ -812,7 +813,7 @@ namespace Poke.UI
 
                                 SetAnchorY(c.rect, 0);
 
-                                LayoutRowAligned(c, offset, lineHeight);
+                                LayoutRowItemAligned(c, offset, lineHeight);
                             }
                             break;
                     }
@@ -990,7 +991,7 @@ namespace Poke.UI
             }
         }
 
-        private void LayoutRowAligned(ChildInfo c, float offset, float lineHeight) {
+        private void LayoutRowItemAligned(ChildInfo c, float offset, float lineHeight) {
             float pivot = c.size.y * c.rect.pivot.y;
             float size = c.size.y + c.margins.top + c.margins.bottom;
             float leftover = lineHeight - size;
@@ -1008,7 +1009,7 @@ namespace Poke.UI
             }
         }
 
-        private void LayoutColumnAligned(ChildInfo c, float offset, float columnWidth) {
+        private void LayoutColumnItemAligned(ChildInfo c, float offset, float columnWidth) {
             float pivot = c.size.x * c.rect.pivot.x;
             float size = c.size.x + c.margins.left + c.margins.right;
             float leftover = columnWidth - size;

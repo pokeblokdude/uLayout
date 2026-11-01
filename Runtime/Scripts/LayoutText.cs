@@ -37,6 +37,12 @@ namespace Poke.UI
         protected override void OnEnable() {
             _text.RegisterDirtyLayoutCallback(TextDirty);
             _text.ForceMeshUpdate(true, true);
+            
+            _preferredSize = _text.GetPreferredValues();
+            if(m_sizing.x == SizingMode.FitContent) FitTextHorizontal();
+            _preferredSize = _text.GetPreferredValues();
+            if(m_sizing.y == SizingMode.FitContent) FitTextVertical();
+            
             base.OnEnable();
         }
 
@@ -52,6 +58,24 @@ namespace Poke.UI
             }
         }
 
+        private void FitTextHorizontal() {
+            _text.textWrappingMode = m_useMaxWidth ? TextWrappingModes.Normal : TextWrappingModes.NoWrap;
+                
+            float size = _preferredSize.x;
+            if(m_useMaxWidth) size = Mathf.Min(m_maxWidth, size);
+            if(m_useMinWidth) size = Mathf.Max(m_minWidth, size);
+            Log($"fit text horizontal: {size}");
+            _rect.SetSizeWithCurrentAnchors(RectTransform.Axis.Horizontal, size);
+        }
+
+        private void FitTextVertical() {
+            float size = _preferredSize.y;
+            if(m_useMaxHeight) size = Mathf.Min(m_maxHeight, size);
+            if(m_useMinHeight) size = Mathf.Max(m_minHeight, size);
+            Log($"fit text vertical: {size}");
+            _rect.SetSizeWithCurrentAnchors(RectTransform.Axis.Vertical, size);
+        }
+        
         public override void CalculateLayoutInputHorizontal() {
             base.CalculateLayoutInputHorizontal();
             
@@ -59,13 +83,7 @@ namespace Poke.UI
             Log($"text size: {_preferredSize}");
                 
             if(m_sizing.x == SizingMode.FitContent) {
-                _text.textWrappingMode = m_useMaxWidth ? TextWrappingModes.Normal : TextWrappingModes.NoWrap;
-                
-                float size = _preferredSize.x;
-                if(m_useMaxWidth) size = Mathf.Min(m_maxWidth, size);
-                if(m_useMinWidth) size = Mathf.Max(m_minWidth, size);
-                Log($"fit text horizontal: {size}");
-                _rect.SetSizeWithCurrentAnchors(RectTransform.Axis.Horizontal, size);
+                FitTextHorizontal();
             }
         }
 
@@ -73,13 +91,8 @@ namespace Poke.UI
             base.CalculateLayoutInputVertical();
             
             _preferredSize = _text.GetPreferredValues();
-            
             if(m_sizing.y == SizingMode.FitContent) {
-                float size = _preferredSize.y;
-                if(m_useMaxHeight) size = Mathf.Min(m_maxHeight, size);
-                if(m_useMinHeight) size = Mathf.Max(m_minHeight, size);
-                Log($"fit text vertical: {size}");
-                _rect.SetSizeWithCurrentAnchors(RectTransform.Axis.Vertical, size);
+                FitTextVertical();
             }
         }
 
