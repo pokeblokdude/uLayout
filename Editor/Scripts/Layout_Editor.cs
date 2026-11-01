@@ -12,14 +12,12 @@
     copies or substantial portions of the Software.
 */
 
-using System;
 using UnityEditor;
 using UnityEditor.UIElements;
-using UnityEngine;
 using UnityEngine.UIElements;
 using Object = UnityEngine.Object;
 
-namespace Poke.UI
+namespace Poke.UI.Editor
 {
     [
         CustomEditor(typeof(Layout)),

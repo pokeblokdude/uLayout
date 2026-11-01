@@ -13,7 +13,7 @@
 */
 using UnityEditor;
 
-namespace Poke.UI
+namespace Poke.UI.Editor
 {
     [
         CustomEditor(typeof(LayoutText)),

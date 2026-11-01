@@ -114,7 +114,7 @@ namespace Poke.UI
         #endregion
         
         // a plain item has nothing to fit; a Layout fits its children
-        protected virtual bool FitsItsContent => false;
+        protected virtual bool FitOwnContent => false;
         protected virtual string LogPrefix => "LI";
         
         protected RectTransform _rect;
@@ -206,14 +206,6 @@ namespace Poke.UI
                 SetDirty();
             }
         }
-
-        // react if rect changes size (excluding during a layout rebuild)
-        protected override void OnRectTransformDimensionsChange() {
-            if(!m_ignoreLayout && !CanvasUpdateRegistry.IsRebuildingLayout()) {
-                Log("<color=cyan>rect size changed</color>");
-                SetDirty();
-            }
-        }
         #endregion
         
         protected void Log(object msg) {
@@ -225,9 +217,9 @@ namespace Poke.UI
             _tracker.Clear();
             _trackerProps = DrivenTransformProperties.None;
             
-            if((m_sizing.x == SizingMode.FitContent && FitsItsContent) || m_sizing.x == SizingMode.Grow)
+            if((m_sizing.x == SizingMode.FitContent && FitOwnContent) || m_sizing.x == SizingMode.Grow)
                 _trackerProps |= DrivenTransformProperties.SizeDeltaX;
-            if((m_sizing.y == SizingMode.FitContent && FitsItsContent) || m_sizing.y == SizingMode.Grow)
+            if((m_sizing.y == SizingMode.FitContent && FitOwnContent) || m_sizing.y == SizingMode.Grow)
                 _trackerProps |= DrivenTransformProperties.SizeDeltaY;
 
             if(_parent && !m_ignoreLayout) 

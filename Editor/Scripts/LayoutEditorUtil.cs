@@ -15,7 +15,7 @@ using UnityEditor;
 using UnityEngine;
 using TMPro;
 
-namespace Poke.UI
+namespace Poke.UI.Editor
 {
     public static class LayoutEditorUtil
     {

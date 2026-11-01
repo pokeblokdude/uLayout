@@ -127,7 +127,7 @@ namespace Poke.UI
         public int ChildCount => _children?.Count ?? 0;
         public Vector2Int GrowChildCount => _growChildCount;
 
-        protected override bool FitsItsContent => transform.childCount > 0;
+        protected override bool FitOwnContent => true;
         protected override string LogPrefix => "L";
 
         private readonly List<ChildInfo>    _children = new();
@@ -203,12 +203,28 @@ namespace Poke.UI
         
         protected override void OnEnable() {
             base.OnEnable();
+            _rect.sendChildDimensionsChange = true;
             QueueCacheRefresh();
         }
 
         // react if any children were added/removed, or if their order changed
         private void OnTransformChildrenChanged() {
             QueueCacheRefresh();
+        }
+
+        // react if rect changes size (excluding during a layout rebuild)
+        protected override void OnRectTransformDimensionsChange() {
+            if(!CanvasUpdateRegistry.IsRebuildingLayout()) {
+                Log("<color=cyan>rect size changed</color>");
+                SetDirty();
+            }
+        }
+        
+        private void OnChildRectTransformDimensionsChange() {
+            if(!CanvasUpdateRegistry.IsRebuildingLayout()) {
+                Log("<color=cyan>child changed size</color>");
+                SetDirty();
+            }
         }
         #endregion
 
@@ -1051,18 +1067,6 @@ namespace Poke.UI
                         // size actually needs to change
                         if(!Mathf.Approximately(c.rect.rect.size.x, size)) {
                             c.rect.SetSizeWithCurrentAnchors(RectTransform.Axis.Horizontal, size);
-
-                            // special case for text growing
-                            if(c.li is LayoutText t) {
-                                float oldSize = c.size.y;
-                                t.HandleGrowSizingX();
-                                float diff = c.rect.rect.size.y * (m_ignoreChildScale ? 1 : c.rect.localScale.y) - oldSize;
-                                // text resized vertically bc of growth
-                                if(!Mathf.Approximately(0, diff)) {
-                                    c.size.y = oldSize + diff;
-                                    GrowSizingXCallback(diff);
-                                }
-                            }
                         }
                     }
                     break;
@@ -1087,18 +1091,6 @@ namespace Poke.UI
                         // size actually needs to change
                         if(!Mathf.Approximately(c.rect.rect.size.x, size)) {
                             c.rect.SetSizeWithCurrentAnchors(RectTransform.Axis.Horizontal, size);
-
-                            // special case for text growing
-                            if(c.li is LayoutText t) {
-                                float oldSize = c.size.y;
-                                t.HandleGrowSizingX();
-                                float diff = c.rect.rect.size.y * (m_ignoreChildScale ? 1 : c.rect.localScale.y) - oldSize;
-                                // text resized vertically bc of growth
-                                if(!Mathf.Approximately(0, diff)) {
-                                    c.size.y = oldSize + diff;
-                                    GrowSizingXCallback(diff);
-                                }
-                            }
                         }
                     }
                     break;
