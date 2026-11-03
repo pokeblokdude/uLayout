@@ -1,6 +1,7 @@
 ﻿## [1.8.2] - ???
 
 ### Added
+- Added a menu item for quickly adding a `LayoutItem` with an `Image` component attached (`GameObject > UI (Canvas) > LayoutItem (+ Image)`)
 - Added a special check in `Layout` for a child added with `GameObject > Create Empty`, which triggers `OnTransformChildrenChanged()` *before* Unity replaces its `Transform` component with a `RectTransform`
 
 ### Fixed
@@ -22,6 +23,11 @@
 
 ### Removed
 - Removed the 'Ignore Child Scale' parameter &mdash; child scale is now always ignored. There appears to be a bug with `Transform.localScale` reporting incorrect values on the frame it is created
+
+### Known Issues
+- Adding a `TextMeshProUGUI` child using `GameObject > UI (Canvas) > Text - TextMeshPro` results in an anchored position of (0, 0), despite the rect reading the correct size. I assume this is being set somewhere inside the TMP object creation method, which I couldn't find &mdash; not that I'd be able to do anything about it anyway\
+To avoid this issue, either use `LayoutText` instead of plain `TextMeshProUGUI`, or create the object and add components manually.\
+The issue also resolves itself after the next layout pass.
 
 ## [1.8.1] - 2026-10-22
 

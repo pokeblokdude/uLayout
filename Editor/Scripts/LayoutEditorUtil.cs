@@ -13,6 +13,7 @@
 */
 using UnityEditor;
 using UnityEngine;
+using UnityEngine.UI;
 using TMPro;
 
 namespace Poke.UI.Editor
@@ -64,6 +65,23 @@ namespace Poke.UI.Editor
             GameObjectUtility.SetParentAndAlign(g, command.context as GameObject);
             
             g.AddComponent<RectTransform>();
+            g.AddComponent<LayoutItem>();
+            
+            Undo.RegisterCreatedObjectUndo(g, "Create " + g.name);
+            Selection.activeObject = g;
+        }
+        
+#if UNITY_6000_3_OR_NEWER
+        [MenuItem("GameObject/UI (Canvas)/Layout/Layout Item (+ Image)", false, 12)]
+#else
+        [MenuItem("GameObject/UI/Layout/Layout Item (+ Image)", false, 12)]
+#endif
+        public static void CreateLayoutItemImageObject(MenuCommand command) {
+            GameObject g = new GameObject("LayoutItem");
+            GameObjectUtility.SetParentAndAlign(g, command.context as GameObject);
+            
+            g.AddComponent<RectTransform>();
+            g.AddComponent<Image>();
             g.AddComponent<LayoutItem>();
             
             Undo.RegisterCreatedObjectUndo(g, "Create " + g.name);
