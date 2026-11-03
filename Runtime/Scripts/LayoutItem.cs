@@ -193,7 +193,7 @@ namespace Poke.UI
         // react to inspector value changes
         protected override void OnValidate() {
             if(!m_ignoreLayout && isActiveAndEnabled) {
-                Log("<color=cyan>inspector values changes</color>");
+                Log("<color=cyan>inspector values changed</color>");
                 SetDirty();
             }
         }

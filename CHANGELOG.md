@@ -1,7 +1,11 @@
 ﻿## [1.8.2] - ???
 
+### Added
+- Added a special check in `Layout` for a child added with `GameObject > Create Empty`, which triggers `OnTransformChildrenChanged()` *before* Unity replaces its `Transform` component with a `RectTransform`
+
 ### Fixed
-- Reverted unintended change from v1.8.0: on a `Layout` with no children, setting an axis to FitContent will shrink to zero (plus any padding). This is intended behavior &mdash; to prevent an item from fully shrinking, use the `MinWdith` and `MinHeight` parameters
+- Reverted unintended change from v1.8.0: on a `Layout` with no children, setting an axis to FitContent will shrink to zero (plus any padding).
+  - This is intended behavior &mdash; to prevent an item from fully shrinking, use the `MinWdith` and `MinHeight` parameters (along with `UseMinWidth` and `UseMaxWidth`)
 - Fixed `Layout` not detecting size changes in plain `RectTransform` children
 - Fixed `LayoutText` with y sizing set to FitContent having a height of 0 on the first layout rebuild after being enabled
   - `LayoutText` now calculates its preferred size immediately on enable 
@@ -9,6 +13,7 @@
 
 ### Changed
 - Moved editor scripts into `Poke.UI.Editor` namespace
+- `Layout` will skip the positioning pass if it has no children
 - `LayoutText` overrides `TMP_Text.textWrappingMode` when x sizing is set to FitContent
   - `TextWrappingModes.Normal` when `UseMaxWidth` is set to true
   - `TextWrappingModes.None` when false
