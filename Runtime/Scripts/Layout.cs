@@ -569,8 +569,6 @@ namespace Poke.UI
                                 // skip disabled/ignore items
                                 if(c.ignore)
                                     continue;
-
-                                Log($"child \"{c.gameObject.name}\" - offset: {offset}, x size: {c.size.x}, x margins: ({c.margins.left}, {c.margins.right})");
                                 
                                 SetAnchorX(c.rect, 0);
 
@@ -1463,9 +1461,9 @@ namespace Poke.UI
                         
                         float size = _rect.rect.size.x - m_padding.left - m_padding.right - c.margins.left - c.margins.right;
                         if(c.li.UseMaxWidth) size = Mathf.Min(c.li.preferredWidth, size);
-                        if(c.li.UseMaxWidth) size = Mathf.Max(c.li.minWidth, size);
+                        if(c.li.UseMinWidth) size = Mathf.Max(c.li.minWidth, size);
                         
-                        Log($"growing \"{c.li.name}\" y axis ({size})");
+                        Log($"growing \"{c.li.name}\" x axis ({size})");
                         c.size.x = size;
                         
                         // update line size
