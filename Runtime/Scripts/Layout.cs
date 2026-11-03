@@ -21,13 +21,6 @@ namespace Poke.UI
     [ExecuteAlways]
     public class Layout : LayoutItem, ILayoutGroup
     {
-        /* THINGS THAT CAN CAUSE A LAYOUT UPDATE
-            - non-grow child RectTransform changes size
-            - number of children change
-            - child is enabled/disabled
-            - this container changes
-        */
-
 #if UNITY_EDITOR
         public static readonly List<Layout> RefreshedThisFrame = new();
 #endif
@@ -38,7 +31,6 @@ namespace Poke.UI
         [SerializeField] private Justification      m_justifyContent;
         [SerializeField] private Alignment          m_alignContent;
         [SerializeField] private float              m_innerSpacing;
-        [SerializeField] private bool               m_ignoreChildScale;
         [SerializeField] private bool               m_wrap;
         [SerializeField] private float              m_lineSpacing;
         [SerializeField] private Alignment          m_alignItems;
@@ -86,15 +78,6 @@ namespace Poke.UI
             set
             {
                 m_innerSpacing = value;
-                SetDirty();
-            }
-        }
-        public bool IgnoreChildScale
-        {
-            get => m_ignoreChildScale;
-            set
-            {
-                m_ignoreChildScale = value;
                 SetDirty();
             }
         }
@@ -223,6 +206,7 @@ namespace Poke.UI
             }
         }
         
+        // react if child rect changes size (excluding during a layout rebuild)
         private void OnChildRectTransformDimensionsChange() {
             if(!CanvasUpdateRegistry.IsRebuildingLayout()) {
                 Log("<color=cyan>child changed size</color>");

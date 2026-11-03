@@ -33,7 +33,6 @@ namespace Poke.UI.Editor
         private SerializedProperty _justifyContent;
         private SerializedProperty _alignContent;
         private SerializedProperty _innerSpacing;
-        private SerializedProperty _ignoreChildScale;
         private SerializedProperty _wrap;
         private SerializedProperty _lineSpacing;
         private SerializedProperty _alignItems;
@@ -47,7 +46,6 @@ namespace Poke.UI.Editor
             _justifyContent = serializedObject.FindProperty("m_justifyContent");
             _alignContent = serializedObject.FindProperty("m_alignContent");
             _innerSpacing = serializedObject.FindProperty("m_innerSpacing");
-            _ignoreChildScale = serializedObject.FindProperty("m_ignoreChildScale");
             _wrap = serializedObject.FindProperty("m_wrap");
             _lineSpacing = serializedObject.FindProperty("m_lineSpacing");
             _alignItems = serializedObject.FindProperty("m_alignItems");
@@ -61,17 +59,10 @@ namespace Poke.UI.Editor
             root.Bind(serializedObject);
             root.TrackSerializedObjectValue(serializedObject, OnObjectChanged);
             
-            PropertyField padding = root.Q<PropertyField>("PaddingField");
-            padding.BindProperty(_padding);
-
-            EnumField direction = root.Q<EnumField>("DirectionField");
-            direction.BindProperty(_direction);
-            
-            EnumField justify = root.Q<EnumField>("JustifyField");
-            justify.BindProperty(_justifyContent);
-            
-            EnumField align = root.Q<EnumField>("AlignField");
-            align.BindProperty(_alignContent);
+            root.Q<PropertyField>("PaddingField").BindProperty(_padding);
+            root.Q<EnumField>("DirectionField").BindProperty(_direction);
+            root.Q<EnumField>("JustifyField").BindProperty(_justifyContent);
+            root.Q<EnumField>("AlignField").BindProperty(_alignContent);
 
             FloatField innerSpacing = root.Q<FloatField>("InnerSpacingField");
             innerSpacing.BindProperty(_innerSpacing);
@@ -79,20 +70,15 @@ namespace Poke.UI.Editor
             innerSpacing.TrackPropertyValue(_justifyContent, prop => {
                 innerSpacing.SetEnabled((Layout.Justification)prop.enumValueIndex != Layout.Justification.SpaceBetween);
             });
-
-            Toggle ignoreScale = root.Q<Toggle>("IgnoreScaleField");
-            ignoreScale.BindProperty(_ignoreChildScale);
             
-            Toggle wrap = root.Q<Toggle>("WrapField");
-            wrap.BindProperty(_wrap);
+            root.Q<Toggle>("WrapField").BindProperty(_wrap);
 
             FloatField lineSpacing = root.Q<FloatField>("LineSpacingField");
             lineSpacing.BindProperty(_lineSpacing);
             lineSpacing.SetEnabled(_wrap.boolValue);
             lineSpacing.TrackPropertyValue(_wrap, prop => lineSpacing.SetEnabled(prop.boolValue));
 
-            EnumField alignItems = root.Q<EnumField>("AlignItemsField");
-            alignItems.BindProperty(_alignItems);
+            root.Q<EnumField>("AlignItemsField").BindProperty(_alignItems);
             
             Label info = root.Q<Label>("InfoLabel");
             info.text = $"Tracking {_layout.ChildCount} layout elements.\nHorizontal Grow: {_layout.GrowChildCount.x}, Vertical Grow: {_layout.GrowChildCount.y}";

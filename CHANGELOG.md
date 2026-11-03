@@ -20,6 +20,9 @@
   - `TextWrappingModes.Normal` when `UseMaxWidth` is set to true
   - `TextWrappingModes.None` when false
 
+### Removed
+- Removed the 'Ignore Child Scale' parameter &mdash; child scale is now always ignored. There appears to be a bug with `Transform.localScale` reporting incorrect values on the frame it is created
+
 ## [1.8.1] - 2026-10-22
 
 ### Added
