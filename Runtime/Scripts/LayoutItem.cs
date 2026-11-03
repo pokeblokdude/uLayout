@@ -244,11 +244,9 @@ namespace Poke.UI
             // Do grow sizing here if parent is not a Layout
             if(!_parent && _parentRect && m_sizing.x == SizingMode.Grow) {
                 Log("grow horizontal (non-layout)");
-                float parentSize = _parentRect.rect.size.x;
-                _rect.anchorMin = _rect.anchorMin.SetX(0.5f);
-                _rect.anchorMax = _rect.anchorMax.SetX(0.5f);
-                _rect.anchoredPosition = _rect.anchoredPosition.SetX(Mathf.LerpUnclamped(-parentSize/2, parentSize/2, _rect.pivot.x));
-                _rect.SetSizeWithCurrentAnchors(RectTransform.Axis.Horizontal, _parentRect.rect.size.x);
+                _rect.anchorMin = _rect.anchorMin.SetX(0);
+                _rect.anchorMax = _rect.anchorMax.SetX(1);
+                _rect.sizeDelta = _rect.sizeDelta.SetX(0);
             }
         }
 
@@ -259,11 +257,9 @@ namespace Poke.UI
             // Do grow sizing here if parent is not a Layout
             if(!_parent && _parentRect && m_sizing.y == SizingMode.Grow) {
                 Log("grow vertical (non-layout)");
-                float parentSize = _parentRect.rect.size.y;
-                _rect.anchorMin = _rect.anchorMin.SetY(0.5f);
-                _rect.anchorMax = _rect.anchorMax.SetY(0.5f);
-                _rect.anchoredPosition = _rect.anchoredPosition.SetY(Mathf.LerpUnclamped(-parentSize/2, parentSize/2, _rect.pivot.y));
-                _rect.SetSizeWithCurrentAnchors(RectTransform.Axis.Vertical, _parentRect.rect.size.y);
+                _rect.anchorMin = _rect.anchorMin.SetY(0);
+                _rect.anchorMax = _rect.anchorMax.SetY(1);
+                _rect.sizeDelta = _rect.sizeDelta.SetY(0);
             }
 
             _refresh++;

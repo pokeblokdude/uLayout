@@ -13,6 +13,7 @@
 
 ### Changed
 - Moved editor scripts into `Poke.UI.Editor` namespace
+- A `LayoutItem` no `Layout` parent, with sizing set to grow, will stretch to fit using its anchors, rather than setting its size directly
 - `Layout` will skip the positioning pass if it has no children
 - `LayoutText` overrides `TMP_Text.textWrappingMode` when x sizing is set to FitContent
   - `TextWrappingModes.Normal` when `UseMaxWidth` is set to true
