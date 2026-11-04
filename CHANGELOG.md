@@ -25,9 +25,10 @@
 - Removed the 'Ignore Child Scale' parameter &mdash; child scale is now always ignored. There appears to be a bug with `Transform.localScale` reporting incorrect values on the frame it is created
 
 ### Known Issues
-- Adding a `TextMeshProUGUI` child using `GameObject > UI (Canvas) > Text - TextMeshPro` results in an anchored position of (0, 0), despite the rect reading the correct size. I assume this is being set somewhere inside the TMP object creation method, which I couldn't find &mdash; not that I'd be able to do anything about it anyway\
-To avoid this issue, either use `LayoutText` instead of plain `TextMeshProUGUI`, or create the object and add components manually.\
-The issue also resolves itself after the next layout pass.
+- Adding a plain uGUI (`Image`, `Toggle`, `Slider`, etc) child using `GameObject > UI (Canvas) > ...` results in an anchored position of (0, 0) after the initial layout, despite the attached `RectTransform` reading the correct size.
+  - I've dug through the internals of how these menu options instantiate their respective objects, yet have been unable to replicate the behavior programmatically &mdash; it seems to be an unavoidable problem with uGUI's internal logic for creating new objects in the editor.
+  - Subsequent layout passes will position the item correctly (so you can just toggle the item off and on quickly). This also means there should be no issues at runtime.
+  - If it really bothers you, the issue can be avoided entirely by manually creating an object, then adding uGUI components.
 
 ## [1.8.1] - 2026-10-22
 

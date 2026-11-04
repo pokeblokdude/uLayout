@@ -536,7 +536,7 @@ namespace Poke.UI
         
         #region Layout Internal
         private void HorizontalLayout(int childStartIdx, int childEndIdx, float columnWidth, float contentWidth, int ignoreCount, float startOffset = 0) {
-            Log($"Horizontal Layout - content total width: {contentWidth}");
+            Log($"content total width: {contentWidth}");
             
             float offset = startOffset;
             float leftover;
@@ -558,6 +558,7 @@ namespace Poke.UI
 
                                 float pivot = c.size.x * c.rect.pivot.x;
                                 offset += c.margins.left + pivot;
+                                Log($"position child \"{c.gameObject.name}\" at x: {offset}");
                                 c.rect.anchoredPosition = c.rect.anchoredPosition.SetX(offset);
                                 offset += (c.size.x - pivot) + c.margins.right + m_innerSpacing;
                             }
@@ -575,6 +576,7 @@ namespace Poke.UI
 
                                 float pivot = c.size.x * c.rect.pivot.x;
                                 offset += c.margins.left + pivot;
+                                Log($"position child \"{c.gameObject.name}\" at x: {offset}");
                                 c.rect.anchoredPosition = c.rect.anchoredPosition.SetX(offset + m_padding.left);
                                 offset += (c.size.x - pivot) + c.margins.right + m_innerSpacing;
                             }
@@ -592,6 +594,7 @@ namespace Poke.UI
 
                                 float pivot = c.size.x * c.rect.pivot.x;
                                 offset += c.margins.left + pivot;
+                                Log($"position child \"{c.gameObject.name}\" at x: {offset}");
                                 c.rect.anchoredPosition = c.rect.anchoredPosition.SetX(offset);
                                 offset += c.size.x - pivot + c.margins.right + m_innerSpacing;
                             }
@@ -618,6 +621,7 @@ namespace Poke.UI
 
                                 float pivot = c.size.x * c.rect.pivot.x;
                                 offset += c.margins.left + pivot;
+                                Log($"position child \"{c.gameObject.name}\" at x: {offset}");
                                 c.rect.anchoredPosition = c.rect.anchoredPosition.SetX(offset);
                                 offset += c.size.x - pivot + c.margins.right + spacing;
                             }
@@ -640,6 +644,7 @@ namespace Poke.UI
 
                                 float pivot = c.size.x * c.rect.pivot.x;
                                 offset -= c.size.x - pivot + c.margins.right;
+                                Log($"position child \"{c.gameObject.name}\" at x: {offset}");
                                 c.rect.anchoredPosition = c.rect.anchoredPosition.SetX(offset);
                                 offset -= pivot + c.margins.left + m_innerSpacing;
                             }
@@ -657,6 +662,7 @@ namespace Poke.UI
 
                                 float pivot = c.size.x * c.rect.pivot.x;
                                 offset -= c.size.x - pivot + c.margins.right;
+                                Log($"position child \"{c.gameObject.name}\" at x: {offset}");
                                 c.rect.anchoredPosition = c.rect.anchoredPosition.SetX(offset);
                                 offset -= pivot + c.margins.left + m_innerSpacing;
                             }
@@ -674,6 +680,7 @@ namespace Poke.UI
 
                                 float pivot = c.size.x * c.rect.pivot.x;
                                 offset += c.size.x - pivot + c.margins.right;
+                                Log($"position child \"{c.gameObject.name}\" at x: {offset}");
                                 c.rect.anchoredPosition = c.rect.anchoredPosition.SetX(-offset);
                                 offset += pivot + c.margins.left + m_innerSpacing;
                             }
@@ -696,6 +703,7 @@ namespace Poke.UI
 
                                 float pivot = c.size.x * c.rect.pivot.x;
                                 offset += c.size.x - pivot + c.margins.right;
+                                Log($"position child \"{c.gameObject.name}\" at x: {offset}");
                                 c.rect.anchoredPosition = c.rect.anchoredPosition.SetX(-offset);
                                 offset += pivot + c.margins.left + spacing;
                             }
@@ -717,7 +725,7 @@ namespace Poke.UI
 
                                 SetAnchorX(c.rect, 0);
 
-                                LayoutColumnItemAligned(c, offset, columnWidth);
+                                AlignColumnItem(c, offset, columnWidth);
                             }
                             break;
                         case Alignment.Center:
@@ -730,7 +738,7 @@ namespace Poke.UI
 
                                 SetAnchorX(c.rect, 0.5f);
 
-                                LayoutColumnItemAligned(c, offset, columnWidth);
+                                AlignColumnItem(c, offset, columnWidth);
                             }
                             break;
                         case Alignment.End:
@@ -744,7 +752,7 @@ namespace Poke.UI
 
                                 SetAnchorX(c.rect, 1);
 
-                                LayoutColumnItemAligned(c, offset, columnWidth);
+                                AlignColumnItem(c, offset, columnWidth);
                             }
                             break;
                     }
@@ -754,7 +762,7 @@ namespace Poke.UI
         }
 
         private void VerticalLayout(int childStartIdx, int childEndIdx, float lineHeight, float contentHeight, int ignoreCount, float startOffset = 0) {
-            Log($"Vertical Layout - content size y: {contentHeight}");
+            Log($"content total height: {contentHeight}");
             
             float offset = 0;
             float leftover;
@@ -776,7 +784,7 @@ namespace Poke.UI
 
                                 SetAnchorY(c.rect, 1);
 
-                                LayoutRowItemAligned(c, offset, lineHeight);
+                                AlignRowItem(c, offset, lineHeight);
                             }
                             break;
                         case Alignment.Center:
@@ -790,7 +798,7 @@ namespace Poke.UI
 
                                 SetAnchorY(c.rect, 0.5f);
 
-                                LayoutRowItemAligned(c, offset, lineHeight);
+                                AlignRowItem(c, offset, lineHeight);
                             }
                             break;
                         case Alignment.End:
@@ -804,7 +812,7 @@ namespace Poke.UI
 
                                 SetAnchorY(c.rect, 0);
 
-                                LayoutRowItemAligned(c, offset, lineHeight);
+                                AlignRowItem(c, offset, lineHeight);
                             }
                             break;
                     }
@@ -826,6 +834,7 @@ namespace Poke.UI
 
                                 float pivot = c.size.y * c.rect.pivot.y;
                                 offset -= c.size.y - pivot + c.margins.top;
+                                Log($"position child \"{c.gameObject.name}\" at y: {offset}");
                                 c.rect.anchoredPosition = c.rect.anchoredPosition.SetY(offset);
                                 offset -= pivot + c.margins.bottom + m_innerSpacing;
                             }
@@ -843,6 +852,7 @@ namespace Poke.UI
 
                                 float pivot = c.size.y * c.rect.pivot.y;
                                 offset -= c.size.y - pivot + c.margins.top;
+                                Log($"position child \"{c.gameObject.name}\" at y: {offset}");
                                 c.rect.anchoredPosition = c.rect.anchoredPosition.SetY(offset);
                                 offset -= pivot + c.margins.bottom + m_innerSpacing;
                             }
@@ -860,6 +870,7 @@ namespace Poke.UI
 
                                 float pivot = c.size.y * c.rect.pivot.y;
                                 offset -= c.size.y - pivot + c.margins.top;
+                                Log($"position child \"{c.gameObject.name}\" at y: {offset}");
                                 c.rect.anchoredPosition = c.rect.anchoredPosition.SetY(offset + m_padding.bottom);
                                 offset -= pivot + c.margins.bottom + m_innerSpacing;
                             }
@@ -886,6 +897,7 @@ namespace Poke.UI
 
                                 float pivot = c.size.y * c.rect.pivot.y;
                                 offset += c.size.y - pivot + c.margins.top;
+                                Log($"position child \"{c.gameObject.name}\" at y: {offset}");
                                 c.rect.anchoredPosition = c.rect.anchoredPosition.SetY(-offset);
                                 offset += pivot + c.margins.bottom;
 
@@ -911,6 +923,7 @@ namespace Poke.UI
 
                                 float pivot = c.size.y * c.rect.pivot.y;
                                 offset += pivot + c.margins.bottom;
+                                Log($"position child \"{c.gameObject.name}\" at y: {offset}");
                                 c.rect.anchoredPosition = c.rect.anchoredPosition.SetY(offset);
                                 offset += c.size.y - pivot + c.margins.top + m_innerSpacing;
                             }
@@ -928,6 +941,7 @@ namespace Poke.UI
 
                                 float pivot = c.size.y * c.rect.pivot.y;
                                 offset += pivot + c.margins.bottom;
+                                Log($"position child \"{c.gameObject.name}\" at y: {offset}");
                                 c.rect.anchoredPosition = c.rect.anchoredPosition.SetY(offset);
                                 offset += c.size.y - pivot + c.margins.top + m_innerSpacing;
                             }
@@ -945,6 +959,7 @@ namespace Poke.UI
 
                                 float pivot = c.size.y * c.rect.pivot.y;
                                 offset += pivot + c.margins.bottom;
+                                Log($"position child \"{c.gameObject.name}\" at y: {offset}");
                                 c.rect.anchoredPosition = c.rect.anchoredPosition.SetY(offset);
                                 offset += c.size.y - pivot + c.margins.top + m_innerSpacing;
                             }
@@ -971,6 +986,7 @@ namespace Poke.UI
 
                                 float pivot = c.size.y * c.rect.pivot.y;
                                 offset += pivot + c.margins.bottom;
+                                Log($"position child \"{c.gameObject.name}\" at y: {offset}");
                                 c.rect.anchoredPosition = c.rect.anchoredPosition.SetY(offset);
                                 offset += c.size.y - pivot + c.margins.top;
 
@@ -982,38 +998,52 @@ namespace Poke.UI
             }
         }
 
-        private void LayoutRowItemAligned(ChildInfo c, float offset, float lineHeight) {
+        private void AlignRowItem(ChildInfo c, float offset, float lineHeight) {
             float pivot = c.size.y * c.rect.pivot.y;
             float size = c.size.y + c.margins.top + c.margins.bottom;
             float leftover = lineHeight - size;
-                                
+
+            float pos;
             switch(m_alignItems) {
                 case Alignment.Start:
-                    c.rect.anchoredPosition = c.rect.anchoredPosition.SetY(offset - c.margins.top - (c.size.y - pivot));
+                    pos = offset - c.margins.top - (c.size.y - pivot);
+                    Log($"position child \"{c.gameObject.name}\" at y: {pos}");
+                    c.rect.anchoredPosition = c.rect.anchoredPosition.SetY(pos);
                     break;
                 case Alignment.Center:
-                    c.rect.anchoredPosition = c.rect.anchoredPosition.SetY(offset - leftover / 2 - c.margins.top - (c.size.y - pivot));
+                    pos = offset - leftover / 2 - c.margins.top - (c.size.y - pivot);
+                    Log($"position child \"{c.gameObject.name}\" at y: {pos}");
+                    c.rect.anchoredPosition = c.rect.anchoredPosition.SetY(pos);
                     break;
                 case Alignment.End:
-                    c.rect.anchoredPosition = c.rect.anchoredPosition.SetY(offset - leftover - c.margins.top - (c.size.y - pivot));
+                    pos = offset - leftover - c.margins.top - (c.size.y - pivot);
+                    Log($"position child \"{c.gameObject.name}\" at y: {pos}");
+                    c.rect.anchoredPosition = c.rect.anchoredPosition.SetY(pos);
                     break;
             }
         }
 
-        private void LayoutColumnItemAligned(ChildInfo c, float offset, float columnWidth) {
+        private void AlignColumnItem(ChildInfo c, float offset, float columnWidth) {
             float pivot = c.size.x * c.rect.pivot.x;
             float size = c.size.x + c.margins.left + c.margins.right;
             float leftover = columnWidth - size;
-                                
+
+            float pos;
             switch(m_alignItems) {
                 case Alignment.Start:
-                    c.rect.anchoredPosition = c.rect.anchoredPosition.SetX(offset + c.margins.left + pivot);
+                    pos = offset + c.margins.left + pivot;
+                    Log($"position child \"{c.gameObject.name}\" at y: {pos}");
+                    c.rect.anchoredPosition = c.rect.anchoredPosition.SetX(pos);
                     break;
                 case Alignment.Center:
-                    c.rect.anchoredPosition = c.rect.anchoredPosition.SetX(offset + leftover / 2 + c.margins.left + pivot);
+                    pos = offset + leftover / 2 + c.margins.left + pivot;
+                    Log($"position child \"{c.gameObject.name}\" at y: {pos}");
+                    c.rect.anchoredPosition = c.rect.anchoredPosition.SetX(pos);
                     break;
                 case Alignment.End:
-                    c.rect.anchoredPosition = c.rect.anchoredPosition.SetX(offset + leftover + c.margins.left + pivot);
+                    pos = offset + leftover + c.margins.left + pivot;
+                    Log($"position child \"{c.gameObject.name}\" at y: {pos}");
+                    c.rect.anchoredPosition = c.rect.anchoredPosition.SetX(pos);
                     break;
             }
         }
