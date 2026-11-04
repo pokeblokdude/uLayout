@@ -16,7 +16,7 @@ using UnityEditor;
 using UnityEditor.UIElements;
 using UnityEngine.UIElements;
 
-namespace Poke.UI
+namespace Poke.UI.Editor
 {
     [CustomPropertyDrawer(typeof(Margins))]
     public class Margins_PropertyDrawer : PropertyDrawer

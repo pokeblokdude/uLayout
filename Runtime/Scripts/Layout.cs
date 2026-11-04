@@ -18,15 +18,9 @@ using UnityEngine.UI;
 
 namespace Poke.UI
 {
+    [ExecuteAlways]
     public class Layout : LayoutItem, ILayoutGroup
     {
-        /* THINGS THAT CAN CAUSE A LAYOUT UPDATE
-            - non-grow child RectTransform changes size
-            - number of children change
-            - child is enabled/disabled
-            - this container changes
-        */
-
 #if UNITY_EDITOR
         public static readonly List<Layout> RefreshedThisFrame = new();
 #endif
@@ -37,7 +31,6 @@ namespace Poke.UI
         [SerializeField] private Justification      m_justifyContent;
         [SerializeField] private Alignment          m_alignContent;
         [SerializeField] private float              m_innerSpacing;
-        [SerializeField] private bool               m_ignoreChildScale;
         [SerializeField] private bool               m_wrap;
         [SerializeField] private float              m_lineSpacing;
         [SerializeField] private Alignment          m_alignItems;
@@ -88,15 +81,6 @@ namespace Poke.UI
                 SetDirty();
             }
         }
-        public bool IgnoreChildScale
-        {
-            get => m_ignoreChildScale;
-            set
-            {
-                m_ignoreChildScale = value;
-                SetDirty();
-            }
-        }
         public bool Wrap
         {
             get => m_wrap;
@@ -127,7 +111,7 @@ namespace Poke.UI
         public int ChildCount => _children?.Count ?? 0;
         public Vector2Int GrowChildCount => _growChildCount;
 
-        protected override bool FitsItsContent => transform.childCount > 0;
+        protected override bool FitOwnContent => true;
         protected override string LogPrefix => "L";
 
         private readonly List<ChildInfo>    _children = new();
@@ -166,12 +150,12 @@ namespace Poke.UI
         private class ChildInfo
         {
             public int index;
+            public GameObject gameObject;
             public RectTransform rect;
             public LayoutItem li;
             public Vector2 size;
             public Margins margins;
-            public bool enabled;
-            public bool ignoreLayout;
+            public bool ignore;
             public int lineIndex;
         }
 
@@ -203,12 +187,31 @@ namespace Poke.UI
         
         protected override void OnEnable() {
             base.OnEnable();
+            _rect.sendChildDimensionsChange = true;
             QueueCacheRefresh();
         }
 
         // react if any children were added/removed, or if their order changed
         private void OnTransformChildrenChanged() {
+            Log("<color=cyan>children changed</color>");
             QueueCacheRefresh();
+        }
+
+        // react if rect changes size (excluding during a layout rebuild)
+        protected override void OnRectTransformDimensionsChange() {
+            // for some reason this event is still invoked even if the object is disabled
+            if(gameObject.activeSelf && enabled && !CanvasUpdateRegistry.IsRebuildingLayout()) {
+                Log("<color=cyan>rect size changed</color>");
+                SetDirty();
+            }
+        }
+        
+        // react if child rect changes size (excluding during a layout rebuild)
+        private void OnChildRectTransformDimensionsChange() {
+            if(!CanvasUpdateRegistry.IsRebuildingLayout()) {
+                Log("<color=cyan>child changed size</color>");
+                SetDirty();
+            }
         }
         #endregion
 
@@ -229,15 +232,15 @@ namespace Poke.UI
             _innerSize = Vector2.zero;
             _precalcYSize = false;
             
-            // get number of disabled/ignore children
+            Log("<color=white>Reading child info</color>");
             foreach(ChildInfo c in _children) {
                 UpdateChildInfo(c);
-                Log($"child: {c.rect.name}, size: {c.size}, margins: {c.margins}");
-                if(CheckIgnoreElem(c)) {
+                if(c.ignore) {
                     _ignoreCount++;
                 }
             }
             
+            Log("<color=white>Calculating horizontal content size</color>");
             if(_children.Count > 0) {
                 float primarySize = m_justifyContent == Justification.SpaceBetween ? 0 : m_innerSpacing * (_children.Count - _ignoreCount - 1);
                 float crossSize = 0;
@@ -246,10 +249,8 @@ namespace Poke.UI
                 float maxCrossSize = 0;
                 foreach(ChildInfo c in _children) {
                     // skip disabled/ignore items
-                    if(CheckIgnoreElem(c))
+                    if(c.ignore)
                         continue;
-
-                    c.size.x = c.rect.rect.size.x * (m_ignoreChildScale ? 1 : c.rect.localScale.x);
                     
                     bool grow = false;
                     if(c.li) {
@@ -293,7 +294,7 @@ namespace Poke.UI
                 _contentSize = Vector2.zero;
             }
             
-            Log($"calculated content x size: {_contentSize.x:f3}");
+            Log($"x size: {_contentSize.x}");
             
             // apply fit sizing X
             if(m_sizing.x == SizingMode.FitContent) {
@@ -301,7 +302,7 @@ namespace Poke.UI
                 if(m_useMaxWidth) size = Mathf.Min(m_maxWidth, size);
                 if(m_useMinWidth) size = Mathf.Max(m_minWidth, size);
                 
-                Log($"fitting horizontally ({size})");
+                Log($"fitting horizontally - {size} ({_contentSize.x} content + {m_padding.left+m_padding.right} padding)");
                 
                 _rect.SetSizeWithCurrentAnchors(
                     RectTransform.Axis.Horizontal,
@@ -320,9 +321,15 @@ namespace Poke.UI
         public override void CalculateLayoutInputVertical() {
             base.CalculateLayoutInputVertical();
             if(_refresh-1 > 0) return;
+
+            // check for any size changes that happened due to layout calculations deeper in the hierarchy
+            foreach(ChildInfo c in _children) {
+                UpdateChildInfo(c);
+            }
             
             _growChildCount.y = 0;
             
+            Log("<color=white>Calculating vertical content size</color>");
             if(_children.Count > 0 && !_precalcYSize) {
                 float primarySize = m_justifyContent == Justification.SpaceBetween ? 0 : m_innerSpacing * (_children.Count - _ignoreCount - 1);
                 float crossSize = 0;
@@ -331,10 +338,8 @@ namespace Poke.UI
                 float maxCrossSize = 0;
                 foreach(ChildInfo c in _children) {
                     // skip disabled/ignore items
-                    if(CheckIgnoreElem(c))
+                    if(c.ignore)
                         continue;
-
-                    c.size.y = c.rect.rect.size.y * (m_ignoreChildScale ? 1 : c.rect.localScale.y);
                     
                     bool grow = false;
                     if(c.li) {
@@ -350,7 +355,6 @@ namespace Poke.UI
                     {
                         case LayoutDirection.Row:
                         case LayoutDirection.RowReverse:
-                            Log($"child y size: {c.size.y}");
                             maxCrossSize = Mathf.Max(maxCrossSize, grow ? 0 : c.size.y + margins);
                             break;
                         case LayoutDirection.Column:
@@ -373,12 +377,11 @@ namespace Poke.UI
                         _contentSize.y = primarySize;
                         break;
                 }
-                
-                Log($"calculated content y size: {_contentSize.y:f3}");
             }
             else if(!_precalcYSize) {
                 _contentSize = Vector2.zero;
             }
+            Log($"y size: {_contentSize.y}");
 
             if(_precalcYSize) {
                 Log("skipping vertical measurements - precalculated during line packing");
@@ -390,7 +393,7 @@ namespace Poke.UI
                 if(m_useMaxHeight) size = Mathf.Min(m_maxHeight, size);
                 if(m_useMinHeight) size = Mathf.Max(m_minHeight, size);
                 
-                Log($"fitting vertically ({size})");
+                Log($"fitting vertically - {size} ({_contentSize.y} content + {m_padding.top+m_padding.bottom} padding)");
                 
                 _rect.SetSizeWithCurrentAnchors(
                     RectTransform.Axis.Vertical,
@@ -399,7 +402,6 @@ namespace Poke.UI
             }
 
             _innerSize.y = _rect.rect.size.y - m_padding.top - m_padding.bottom;
-            Log($"calculated rect y size: {_rect.rect.size.y:f3}, inner: {_innerSize.y}");
 
             if(!IsRowDirection() && m_wrap && _contentSize.y > _innerSize.y) {
                 PackColumns();
@@ -407,7 +409,7 @@ namespace Poke.UI
         }
 
         public void SetLayoutHorizontal() {
-            if(_refresh > 0) return;
+            if(_refresh > 0 || _children.Count == 0) return;
             Log("<color=green>SetLayoutHorizontal</color>");
             
             if(m_wrap && _lines.Count > 0) {
@@ -417,6 +419,7 @@ namespace Poke.UI
                         HorizontalLayout(line.firstItemIdx, line.lastItemIdx, line.crossSize, line.primarySize, line.ignoreCount);
                     }
                 }
+                // else: deffer horizontal layout -
                 // vertical wrap requires calculating vertical sizes BEFORE horizontal layout
             }
             else {
@@ -426,7 +429,7 @@ namespace Poke.UI
         }
 
         public void SetLayoutVertical() {
-            if(_refresh-1 > 0) return;
+            if(_refresh-1 > 0 || _children.Count == 0) return;
             Log("<color=green>SetLayoutVertical</color>");
             
             if(m_wrap && _lines.Count > 0) {
@@ -462,17 +465,31 @@ namespace Poke.UI
         #endregion
 
         #region Layout Helpers
-        private bool CheckIgnoreElem(ChildInfo ci) {
-            return ci.rect == null || !ci.enabled || ci.ignoreLayout;
-        }
-
         private void UpdateChildInfo(ChildInfo c) {
-            c.enabled = c.rect.gameObject.activeSelf;
-            c.ignoreLayout = c.li && c.li.IgnoreLayout;
+            if(!c.rect) {
+                // workaround for empty gameobject being added without RectTransform
+                Debug.LogWarning(
+                    $"[{Time.frameCount}] [L:{name}]: child \"{c.gameObject.name}\" is missing RectTransform - checking if one was added"
+                );
+                c.rect = c.gameObject.GetComponent<RectTransform>();
+                if(c.rect) Log("found rect");
+            }
+
+            c.ignore = c.rect == null || !c.gameObject.activeSelf || (c.li && c.li.IgnoreLayout);
+            
+            // set driven properties for non-LayoutItem children
+            if(!c.li && c.rect && !c.ignore) {
+                _tracker.Add(
+                    this,
+                    c.rect,
+                    DrivenTransformProperties.AnchoredPosition | DrivenTransformProperties.Anchors
+                );
+            }
+            
             c.margins = c.li ? c.li.Margins : default;
-            c.size = c.rect.rect.size;
-            c.size.x *= m_ignoreChildScale ? 1 : c.rect.localScale.x;
-            c.size.y *= m_ignoreChildScale ? 1 : c.rect.localScale.y;
+            c.size = c.rect ? c.rect.rect.size : Vector2.zero;
+            
+            Log($"read child \"{c.gameObject.name}\" - size: {c.size}, margins: {c.margins}");
         }
         
         private void RefreshChildCache() {
@@ -480,32 +497,23 @@ namespace Poke.UI
             _lines.Clear();
 
             int childCount = transform.childCount;
-            Log($"Refreshing child cache - {childCount} children detected");
+            Log($"<color=white>Refreshing child cache</color> - {childCount} children detected");
 
             for(int i = 0; i < childCount; i++) {
-                RectTransform rt = transform.GetChild(i).GetComponent<RectTransform>();
-                if (rt == null) continue;
-                
-                LayoutItem li = rt.GetComponent<LayoutItem>();
-                // Log($"Adding child \"{rt.name}\" - size: {rt.rect.size}, layoutitem: {li != null}");
+                GameObject g = transform.GetChild(i).gameObject;
+                RectTransform rt = g.GetComponent<RectTransform>();
+                LayoutItem li = g.GetComponent<LayoutItem>();
 
                 ChildInfo c = new ChildInfo {
                     index = i,
+                    gameObject = g,
                     rect = rt,
                     li = li,
                     margins = li ? li.Margins : default,
-                    size = rt.rect.size * (m_ignoreChildScale ? Vector2.one : rt.localScale),
-                    enabled = rt.gameObject.activeSelf,
-                    ignoreLayout = li && li.IgnoreLayout,
+                    size = rt ? rt.rect.size : Vector2.zero
                 };
-
-                if(!c.li) {
-                    _tracker.Add(
-                        this,
-                        c.rect,
-                        DrivenTransformProperties.AnchoredPosition | DrivenTransformProperties.Anchors
-                    );
-                }
+                
+                Log($"Adding child \"{c.gameObject.name}\" - size: {c.size}, layoutitem: {li != null}, ignore: {c.ignore}");
                 
                 _children.Add(c);
             }
@@ -528,7 +536,7 @@ namespace Poke.UI
         
         #region Layout Internal
         private void HorizontalLayout(int childStartIdx, int childEndIdx, float columnWidth, float contentWidth, int ignoreCount, float startOffset = 0) {
-            Log($"Horizontal Layout - content total width: {contentWidth}");
+            Log($"content total width: {contentWidth}");
             
             float offset = startOffset;
             float leftover;
@@ -543,13 +551,14 @@ namespace Poke.UI
                             for(int i = childStartIdx; i <= childEndIdx; i++) {
                                 ChildInfo c = _children[i];
                                 // skip disabled/ignore items
-                                if(CheckIgnoreElem(c))
+                                if(c.ignore)
                                     continue;
-
+                                
                                 SetAnchorX(c.rect, 0);
 
                                 float pivot = c.size.x * c.rect.pivot.x;
                                 offset += c.margins.left + pivot;
+                                Log($"position child \"{c.gameObject.name}\" at x: {offset}");
                                 c.rect.anchoredPosition = c.rect.anchoredPosition.SetX(offset);
                                 offset += (c.size.x - pivot) + c.margins.right + m_innerSpacing;
                             }
@@ -560,13 +569,14 @@ namespace Poke.UI
                             for(int i = childStartIdx; i <= childEndIdx; i++) {
                                 ChildInfo c = _children[i];
                                 // skip disabled/ignore items
-                                if(CheckIgnoreElem(c))
+                                if(c.ignore)
                                     continue;
 
                                 SetAnchorX(c.rect, 0.5f);
 
                                 float pivot = c.size.x * c.rect.pivot.x;
                                 offset += c.margins.left + pivot;
+                                Log($"position child \"{c.gameObject.name}\" at x: {offset}");
                                 c.rect.anchoredPosition = c.rect.anchoredPosition.SetX(offset + m_padding.left);
                                 offset += (c.size.x - pivot) + c.margins.right + m_innerSpacing;
                             }
@@ -577,13 +587,14 @@ namespace Poke.UI
                             for(int i = childStartIdx; i <= childEndIdx; i++) {
                                 ChildInfo c = _children[i];
                                 // skip disabled/ignore items
-                                if(CheckIgnoreElem(c))
+                                if(c.ignore)
                                     continue;
 
                                 SetAnchorX(c.rect, 1);
 
                                 float pivot = c.size.x * c.rect.pivot.x;
                                 offset += c.margins.left + pivot;
+                                Log($"position child \"{c.gameObject.name}\" at x: {offset}");
                                 c.rect.anchoredPosition = c.rect.anchoredPosition.SetX(offset);
                                 offset += c.size.x - pivot + c.margins.right + m_innerSpacing;
                             }
@@ -603,13 +614,14 @@ namespace Poke.UI
                             for(int i = childStartIdx; i <= childEndIdx; i++) {
                                 ChildInfo c = _children[i];
                                 // skip disabled/ignore items
-                                if(CheckIgnoreElem(c))
+                                if(c.ignore)
                                     continue;
 
                                 SetAnchorX(c.rect, 0);
 
                                 float pivot = c.size.x * c.rect.pivot.x;
                                 offset += c.margins.left + pivot;
+                                Log($"position child \"{c.gameObject.name}\" at x: {offset}");
                                 c.rect.anchoredPosition = c.rect.anchoredPosition.SetX(offset);
                                 offset += c.size.x - pivot + c.margins.right + spacing;
                             }
@@ -625,13 +637,14 @@ namespace Poke.UI
                             for(int i = childStartIdx; i <= childEndIdx; i++) {
                                 ChildInfo c = _children[i];
                                 // skip disabled/ignore items
-                                if(CheckIgnoreElem(c))
+                                if(c.ignore)
                                     continue;
 
                                 SetAnchorX(c.rect, 0);
 
                                 float pivot = c.size.x * c.rect.pivot.x;
                                 offset -= c.size.x - pivot + c.margins.right;
+                                Log($"position child \"{c.gameObject.name}\" at x: {offset}");
                                 c.rect.anchoredPosition = c.rect.anchoredPosition.SetX(offset);
                                 offset -= pivot + c.margins.left + m_innerSpacing;
                             }
@@ -642,13 +655,14 @@ namespace Poke.UI
                             for(int i = childStartIdx; i <= childEndIdx; i++) {
                                 ChildInfo c = _children[i];
                                 // skip disabled/ignore items
-                                if (CheckIgnoreElem(c))
+                                if (c.ignore)
                                     continue;
 
                                 SetAnchorX(c.rect, 0.5f);
 
                                 float pivot = c.size.x * c.rect.pivot.x;
                                 offset -= c.size.x - pivot + c.margins.right;
+                                Log($"position child \"{c.gameObject.name}\" at x: {offset}");
                                 c.rect.anchoredPosition = c.rect.anchoredPosition.SetX(offset);
                                 offset -= pivot + c.margins.left + m_innerSpacing;
                             }
@@ -659,13 +673,14 @@ namespace Poke.UI
                             for(int i = childStartIdx; i <= childEndIdx; i++) {
                                 ChildInfo c = _children[i];
                                 // skip disabled/ignore items
-                                if(CheckIgnoreElem(c))
+                                if(c.ignore)
                                     continue;
 
                                 SetAnchorX(c.rect, 1);
 
                                 float pivot = c.size.x * c.rect.pivot.x;
                                 offset += c.size.x - pivot + c.margins.right;
+                                Log($"position child \"{c.gameObject.name}\" at x: {offset}");
                                 c.rect.anchoredPosition = c.rect.anchoredPosition.SetX(-offset);
                                 offset += pivot + c.margins.left + m_innerSpacing;
                             }
@@ -681,13 +696,14 @@ namespace Poke.UI
                             for(int i = childStartIdx; i <= childEndIdx; i++) {
                                 ChildInfo c = _children[i];
                                 // skip disabled/ignore items
-                                if(CheckIgnoreElem(c))
+                                if(c.ignore)
                                     continue;
 
                                 SetAnchorX(c.rect, 1);
 
                                 float pivot = c.size.x * c.rect.pivot.x;
                                 offset += c.size.x - pivot + c.margins.right;
+                                Log($"position child \"{c.gameObject.name}\" at x: {offset}");
                                 c.rect.anchoredPosition = c.rect.anchoredPosition.SetX(-offset);
                                 offset += pivot + c.margins.left + spacing;
                             }
@@ -704,12 +720,12 @@ namespace Poke.UI
                             for(int i = childStartIdx; i <= childEndIdx; i++) {
                                 ChildInfo c = _children[i];
                                 // skip disabled/ignore items
-                                if(CheckIgnoreElem(c))
+                                if(c.ignore)
                                     continue;
 
                                 SetAnchorX(c.rect, 0);
 
-                                LayoutColumnAligned(c, offset, columnWidth);
+                                AlignColumnItem(c, offset, columnWidth);
                             }
                             break;
                         case Alignment.Center:
@@ -717,12 +733,12 @@ namespace Poke.UI
                             for(int i = childStartIdx; i <= childEndIdx; i++) {
                                 ChildInfo c = _children[i];
                                 // skip disabled/ignore items
-                                if(CheckIgnoreElem(c))
+                                if(c.ignore)
                                     continue;
 
                                 SetAnchorX(c.rect, 0.5f);
 
-                                LayoutColumnAligned(c, offset, columnWidth);
+                                AlignColumnItem(c, offset, columnWidth);
                             }
                             break;
                         case Alignment.End:
@@ -731,12 +747,12 @@ namespace Poke.UI
                             for(int i = childStartIdx; i <= childEndIdx; i++) {
                                 ChildInfo c = _children[i];
                                 // skip disabled/ignore items
-                                if(CheckIgnoreElem(c))
+                                if(c.ignore)
                                     continue;
 
                                 SetAnchorX(c.rect, 1);
 
-                                LayoutColumnAligned(c, offset, columnWidth);
+                                AlignColumnItem(c, offset, columnWidth);
                             }
                             break;
                     }
@@ -746,7 +762,7 @@ namespace Poke.UI
         }
 
         private void VerticalLayout(int childStartIdx, int childEndIdx, float lineHeight, float contentHeight, int ignoreCount, float startOffset = 0) {
-            Log($"Vertical Layout - content size y: {contentHeight}");
+            Log($"content total height: {contentHeight}");
             
             float offset = 0;
             float leftover;
@@ -763,12 +779,12 @@ namespace Poke.UI
                             for(int i = childStartIdx; i <= childEndIdx; i++) {
                                 ChildInfo c = _children[i];
                                 // skip disabled/ignore items
-                                if(CheckIgnoreElem(c))
+                                if(c.ignore)
                                     continue;
 
                                 SetAnchorY(c.rect, 1);
 
-                                LayoutRowAligned(c, offset, lineHeight);
+                                AlignRowItem(c, offset, lineHeight);
                             }
                             break;
                         case Alignment.Center:
@@ -777,12 +793,12 @@ namespace Poke.UI
                             for(int i = childStartIdx; i <= childEndIdx; i++) {
                                 ChildInfo c = _children[i];
                                 // skip disabled/ignore items
-                                if(CheckIgnoreElem(c))
+                                if(c.ignore)
                                     continue;
 
                                 SetAnchorY(c.rect, 0.5f);
 
-                                LayoutRowAligned(c, offset, lineHeight);
+                                AlignRowItem(c, offset, lineHeight);
                             }
                             break;
                         case Alignment.End:
@@ -791,12 +807,12 @@ namespace Poke.UI
                             for(int i = childStartIdx; i <= childEndIdx; i++) {
                                 ChildInfo c = _children[i];
                                 // skip disabled/ignore items
-                                if(CheckIgnoreElem(c))
+                                if(c.ignore)
                                     continue;
 
                                 SetAnchorY(c.rect, 0);
 
-                                LayoutRowAligned(c, offset, lineHeight);
+                                AlignRowItem(c, offset, lineHeight);
                             }
                             break;
                     }
@@ -811,13 +827,14 @@ namespace Poke.UI
                             for(int i = childStartIdx; i <= childEndIdx; i++) {
                                 ChildInfo c = _children[i];
                                 // skip disabled/ignore items
-                                if(CheckIgnoreElem(c))
+                                if(c.ignore)
                                     continue;
 
                                 SetAnchorY(c.rect, 1);
 
                                 float pivot = c.size.y * c.rect.pivot.y;
                                 offset -= c.size.y - pivot + c.margins.top;
+                                Log($"position child \"{c.gameObject.name}\" at y: {offset}");
                                 c.rect.anchoredPosition = c.rect.anchoredPosition.SetY(offset);
                                 offset -= pivot + c.margins.bottom + m_innerSpacing;
                             }
@@ -828,13 +845,14 @@ namespace Poke.UI
                             for(int i = childStartIdx; i <= childEndIdx; i++) {
                                 ChildInfo c = _children[i];
                                 // skip disabled/ignore items
-                                if(CheckIgnoreElem(c))
+                                if(c.ignore)
                                     continue;
 
                                 SetAnchorY(c.rect, 0.5f);
 
                                 float pivot = c.size.y * c.rect.pivot.y;
                                 offset -= c.size.y - pivot + c.margins.top;
+                                Log($"position child \"{c.gameObject.name}\" at y: {offset}");
                                 c.rect.anchoredPosition = c.rect.anchoredPosition.SetY(offset);
                                 offset -= pivot + c.margins.bottom + m_innerSpacing;
                             }
@@ -845,13 +863,14 @@ namespace Poke.UI
                             for(int i = childStartIdx; i <= childEndIdx; i++) {
                                 ChildInfo c = _children[i];
                                 // skip disabled/ignore items
-                                if(CheckIgnoreElem(c))
+                                if(c.ignore)
                                     continue;
 
                                 SetAnchorY(c.rect, 0);
 
                                 float pivot = c.size.y * c.rect.pivot.y;
                                 offset -= c.size.y - pivot + c.margins.top;
+                                Log($"position child \"{c.gameObject.name}\" at y: {offset}");
                                 c.rect.anchoredPosition = c.rect.anchoredPosition.SetY(offset + m_padding.bottom);
                                 offset -= pivot + c.margins.bottom + m_innerSpacing;
                             }
@@ -867,7 +886,7 @@ namespace Poke.UI
                             for(int i = childStartIdx; i <= childEndIdx; i++) {
                                 ChildInfo c = _children[i];
                                 // skip disabled/ignore items
-                                if(CheckIgnoreElem(c))
+                                if(c.ignore)
                                     continue;
 
                                 SetAnchorY(c.rect, 1);
@@ -878,6 +897,7 @@ namespace Poke.UI
 
                                 float pivot = c.size.y * c.rect.pivot.y;
                                 offset += c.size.y - pivot + c.margins.top;
+                                Log($"position child \"{c.gameObject.name}\" at y: {offset}");
                                 c.rect.anchoredPosition = c.rect.anchoredPosition.SetY(-offset);
                                 offset += pivot + c.margins.bottom;
 
@@ -896,13 +916,14 @@ namespace Poke.UI
                             for(int i = childStartIdx; i <= childEndIdx; i++) {
                                 ChildInfo c = _children[i];
                                 // skip disabled/ignore items
-                                if(CheckIgnoreElem(c))
+                                if(c.ignore)
                                     continue;
 
                                 SetAnchorY(c.rect, 1);
 
                                 float pivot = c.size.y * c.rect.pivot.y;
                                 offset += pivot + c.margins.bottom;
+                                Log($"position child \"{c.gameObject.name}\" at y: {offset}");
                                 c.rect.anchoredPosition = c.rect.anchoredPosition.SetY(offset);
                                 offset += c.size.y - pivot + c.margins.top + m_innerSpacing;
                             }
@@ -913,13 +934,14 @@ namespace Poke.UI
                             for(int i = childStartIdx; i <= childEndIdx; i++) {
                                 ChildInfo c = _children[i];
                                 // skip disabled/ignore items
-                                if(CheckIgnoreElem(c))
+                                if(c.ignore)
                                     continue;
 
                                 SetAnchorY(c.rect, 0.5f);
 
                                 float pivot = c.size.y * c.rect.pivot.y;
                                 offset += pivot + c.margins.bottom;
+                                Log($"position child \"{c.gameObject.name}\" at y: {offset}");
                                 c.rect.anchoredPosition = c.rect.anchoredPosition.SetY(offset);
                                 offset += c.size.y - pivot + c.margins.top + m_innerSpacing;
                             }
@@ -930,13 +952,14 @@ namespace Poke.UI
                             for(int i = childStartIdx; i <= childEndIdx; i++) {
                                 ChildInfo c = _children[i];
                                 // skip disabled/ignore items
-                                if(CheckIgnoreElem(c))
+                                if(c.ignore)
                                     continue;
 
                                 SetAnchorY(c.rect, 0);
 
                                 float pivot = c.size.y * c.rect.pivot.y;
                                 offset += pivot + c.margins.bottom;
+                                Log($"position child \"{c.gameObject.name}\" at y: {offset}");
                                 c.rect.anchoredPosition = c.rect.anchoredPosition.SetY(offset);
                                 offset += c.size.y - pivot + c.margins.top + m_innerSpacing;
                             }
@@ -952,7 +975,7 @@ namespace Poke.UI
                             for(int i = childStartIdx; i <= childEndIdx; i++) {
                                 ChildInfo c = _children[i];
                                 // skip disabled/ignore items
-                                if(CheckIgnoreElem(c))
+                                if(c.ignore)
                                     continue;
 
                                 SetAnchorY(c.rect, 0);
@@ -963,6 +986,7 @@ namespace Poke.UI
 
                                 float pivot = c.size.y * c.rect.pivot.y;
                                 offset += pivot + c.margins.bottom;
+                                Log($"position child \"{c.gameObject.name}\" at y: {offset}");
                                 c.rect.anchoredPosition = c.rect.anchoredPosition.SetY(offset);
                                 offset += c.size.y - pivot + c.margins.top;
 
@@ -974,38 +998,52 @@ namespace Poke.UI
             }
         }
 
-        private void LayoutRowAligned(ChildInfo c, float offset, float lineHeight) {
+        private void AlignRowItem(ChildInfo c, float offset, float lineHeight) {
             float pivot = c.size.y * c.rect.pivot.y;
             float size = c.size.y + c.margins.top + c.margins.bottom;
             float leftover = lineHeight - size;
-                                
+
+            float pos;
             switch(m_alignItems) {
                 case Alignment.Start:
-                    c.rect.anchoredPosition = c.rect.anchoredPosition.SetY(offset - c.margins.top - (c.size.y - pivot));
+                    pos = offset - c.margins.top - (c.size.y - pivot);
+                    Log($"position child \"{c.gameObject.name}\" at y: {pos}");
+                    c.rect.anchoredPosition = c.rect.anchoredPosition.SetY(pos);
                     break;
                 case Alignment.Center:
-                    c.rect.anchoredPosition = c.rect.anchoredPosition.SetY(offset - leftover / 2 - c.margins.top - (c.size.y - pivot));
+                    pos = offset - leftover / 2 - c.margins.top - (c.size.y - pivot);
+                    Log($"position child \"{c.gameObject.name}\" at y: {pos}");
+                    c.rect.anchoredPosition = c.rect.anchoredPosition.SetY(pos);
                     break;
                 case Alignment.End:
-                    c.rect.anchoredPosition = c.rect.anchoredPosition.SetY(offset - leftover - c.margins.top - (c.size.y - pivot));
+                    pos = offset - leftover - c.margins.top - (c.size.y - pivot);
+                    Log($"position child \"{c.gameObject.name}\" at y: {pos}");
+                    c.rect.anchoredPosition = c.rect.anchoredPosition.SetY(pos);
                     break;
             }
         }
 
-        private void LayoutColumnAligned(ChildInfo c, float offset, float columnWidth) {
+        private void AlignColumnItem(ChildInfo c, float offset, float columnWidth) {
             float pivot = c.size.x * c.rect.pivot.x;
             float size = c.size.x + c.margins.left + c.margins.right;
             float leftover = columnWidth - size;
-                                
+
+            float pos;
             switch(m_alignItems) {
                 case Alignment.Start:
-                    c.rect.anchoredPosition = c.rect.anchoredPosition.SetX(offset + c.margins.left + pivot);
+                    pos = offset + c.margins.left + pivot;
+                    Log($"position child \"{c.gameObject.name}\" at y: {pos}");
+                    c.rect.anchoredPosition = c.rect.anchoredPosition.SetX(pos);
                     break;
                 case Alignment.Center:
-                    c.rect.anchoredPosition = c.rect.anchoredPosition.SetX(offset + leftover / 2 + c.margins.left + pivot);
+                    pos = offset + leftover / 2 + c.margins.left + pivot;
+                    Log($"position child \"{c.gameObject.name}\" at y: {pos}");
+                    c.rect.anchoredPosition = c.rect.anchoredPosition.SetX(pos);
                     break;
                 case Alignment.End:
-                    c.rect.anchoredPosition = c.rect.anchoredPosition.SetX(offset + leftover + c.margins.left + pivot);
+                    pos = offset + leftover + c.margins.left + pivot;
+                    Log($"position child \"{c.gameObject.name}\" at y: {pos}");
+                    c.rect.anchoredPosition = c.rect.anchoredPosition.SetX(pos);
                     break;
             }
         }
@@ -1026,7 +1064,7 @@ namespace Poke.UI
                 case LayoutDirection.RowReverse:
                     // save total flex sum for size distribution
                     foreach(ChildInfo c in _children) {
-                        if(!c.li || CheckIgnoreElem(c) || c.li.Sizing.x != SizingMode.Grow)
+                        if(!c.li || c.ignore || c.li.Sizing.x != SizingMode.Grow)
                             continue;
 
                         flexTotal += c.li.flexibleWidth;
@@ -1036,7 +1074,7 @@ namespace Poke.UI
                     // Log($"free space: {leftover}");
                     
                     foreach(ChildInfo c in _children) {
-                        if(!c.li || CheckIgnoreElem(c) || c.li.Sizing.x != SizingMode.Grow)
+                        if(!c.li || c.ignore || c.li.Sizing.x != SizingMode.Grow)
                             continue;
                         
                         size = leftover * (c.li.flexibleWidth / flexTotal) - c.margins.left - c.margins.right;
@@ -1051,18 +1089,6 @@ namespace Poke.UI
                         // size actually needs to change
                         if(!Mathf.Approximately(c.rect.rect.size.x, size)) {
                             c.rect.SetSizeWithCurrentAnchors(RectTransform.Axis.Horizontal, size);
-
-                            // special case for text growing
-                            if(c.li is LayoutText t) {
-                                float oldSize = c.size.y;
-                                t.HandleGrowSizingX();
-                                float diff = c.rect.rect.size.y * (m_ignoreChildScale ? 1 : c.rect.localScale.y) - oldSize;
-                                // text resized vertically bc of growth
-                                if(!Mathf.Approximately(0, diff)) {
-                                    c.size.y = oldSize + diff;
-                                    GrowSizingXCallback(diff);
-                                }
-                            }
                         }
                     }
                     break;
@@ -1072,7 +1098,7 @@ namespace Poke.UI
                     crossSize = _rect.rect.size.x - m_padding.left - m_padding.right;
 
                     foreach(ChildInfo c in _children) {
-                        if(!c.li || CheckIgnoreElem(c) || c.li.Sizing.x != SizingMode.Grow)
+                        if(!c.li || c.ignore || c.li.Sizing.x != SizingMode.Grow)
                             continue;
                         
                         size = crossSize - c.margins.left - c.margins.right;
@@ -1087,18 +1113,6 @@ namespace Poke.UI
                         // size actually needs to change
                         if(!Mathf.Approximately(c.rect.rect.size.x, size)) {
                             c.rect.SetSizeWithCurrentAnchors(RectTransform.Axis.Horizontal, size);
-
-                            // special case for text growing
-                            if(c.li is LayoutText t) {
-                                float oldSize = c.size.y;
-                                t.HandleGrowSizingX();
-                                float diff = c.rect.rect.size.y * (m_ignoreChildScale ? 1 : c.rect.localScale.y) - oldSize;
-                                // text resized vertically bc of growth
-                                if(!Mathf.Approximately(0, diff)) {
-                                    c.size.y = oldSize + diff;
-                                    GrowSizingXCallback(diff);
-                                }
-                            }
                         }
                     }
                     break;
@@ -1123,7 +1137,7 @@ namespace Poke.UI
                     crossSize = _rect.rect.size.y - m_padding.top - m_padding.bottom;
 
                     foreach(ChildInfo c in _children) {
-                        if(!c.li || CheckIgnoreElem(c) || c.li.Sizing.y != SizingMode.Grow)
+                        if(!c.li || c.ignore || c.li.Sizing.y != SizingMode.Grow)
                             continue;
                         
                         size = crossSize - c.margins.top - c.margins.bottom;
@@ -1146,7 +1160,7 @@ namespace Poke.UI
                 case LayoutDirection.ColumnReverse:
                     // save total flex sum for size distribution
                     foreach(ChildInfo c in _children) {
-                        if(!c.li || CheckIgnoreElem(c) || c.li.Sizing.y != SizingMode.Grow)
+                        if(!c.li || c.ignore || c.li.Sizing.y != SizingMode.Grow)
                             continue;
 
                         flexTotal += c.li.flexibleHeight;
@@ -1155,7 +1169,7 @@ namespace Poke.UI
                     leftover = _rect.rect.size.y - _contentSize.y - m_padding.top - m_padding.bottom;
                     
                     foreach(ChildInfo c in _children) {
-                        if(!c.li || CheckIgnoreElem(c) || c.li.Sizing.y != SizingMode.Grow)
+                        if(!c.li || c.ignore || c.li.Sizing.y != SizingMode.Grow)
                             continue;
                         
                         size = leftover * (c.li.flexibleHeight / flexTotal) - c.margins.top - c.margins.bottom;
@@ -1185,7 +1199,7 @@ namespace Poke.UI
             bool newLine = true;
             
             foreach(ChildInfo c in _children) {
-                if(CheckIgnoreElem(c)) {
+                if(c.ignore) {
                     line.ignoreCount++;
                     continue;
                 }
@@ -1320,7 +1334,7 @@ namespace Poke.UI
             bool newLine = true;
             
             foreach(ChildInfo c in _children) {
-                if(CheckIgnoreElem(c)) {
+                if(c.ignore) {
                     line.ignoreCount++;
                     continue;
                 }
@@ -1456,14 +1470,14 @@ namespace Poke.UI
                 case LayoutDirection.Row:
                 case LayoutDirection.RowReverse:
                     foreach(ChildInfo c in _children) {
-                        if(!c.li || CheckIgnoreElem(c) || c.li.Sizing.x != SizingMode.Grow)
+                        if(!c.li || c.ignore || c.li.Sizing.x != SizingMode.Grow)
                             continue;
                         
                         float size = _rect.rect.size.x - m_padding.left - m_padding.right - c.margins.left - c.margins.right;
                         if(c.li.UseMaxWidth) size = Mathf.Min(c.li.preferredWidth, size);
-                        if(c.li.UseMaxWidth) size = Mathf.Max(c.li.minWidth, size);
+                        if(c.li.UseMinWidth) size = Mathf.Max(c.li.minWidth, size);
                         
-                        Log($"growing \"{c.li.name}\" y axis ({size})");
+                        Log($"growing \"{c.li.name}\" x axis ({size})");
                         c.size.x = size;
                         
                         // update line size
@@ -1488,7 +1502,7 @@ namespace Poke.UI
                             continue;
 
                         ChildInfo c = _children[line.firstItemIdx];
-                        if(!c.li || CheckIgnoreElem(c) || c.li.Sizing.x != SizingMode.Grow)
+                        if(!c.li || c.ignore || c.li.Sizing.x != SizingMode.Grow)
                             continue;
 
                         flexTotal += c.li.flexibleWidth;
@@ -1501,7 +1515,7 @@ namespace Poke.UI
                             for(int i = line.firstItemIdx; i <= line.lastItemIdx; i++) {
                                 ChildInfo c = _children[i];
                                 
-                                if(!c.li || CheckIgnoreElem(c) || c.li.Sizing.x != SizingMode.Grow)
+                                if(!c.li || c.ignore || c.li.Sizing.x != SizingMode.Grow)
                                     continue;
 
                                 // Log($"line width: {line.crossSize}");
@@ -1520,7 +1534,7 @@ namespace Poke.UI
                         }
                         else {
                             ChildInfo c = _children[line.firstItemIdx];
-                            if(!c.li || CheckIgnoreElem(c) || c.li.Sizing.x != SizingMode.Grow)
+                            if(!c.li || c.ignore || c.li.Sizing.x != SizingMode.Grow)
                                 continue;
 
                             float size = leftover * (c.li.flexibleWidth / flexTotal) - c.margins.left - c.margins.right;
@@ -1561,7 +1575,7 @@ namespace Poke.UI
                             continue;
 
                         ChildInfo c = _children[line.firstItemIdx];
-                        if(!c.li || CheckIgnoreElem(c) || c.li.Sizing.y != SizingMode.Grow)
+                        if(!c.li || c.ignore || c.li.Sizing.y != SizingMode.Grow)
                             continue;
 
                         flexTotal += c.li.flexibleHeight;
@@ -1574,7 +1588,7 @@ namespace Poke.UI
                             for(int i = line.firstItemIdx; i <= line.lastItemIdx; i++) {
                                 ChildInfo c = _children[i];
                                 
-                                if(!c.li || CheckIgnoreElem(c) || c.li.Sizing.y != SizingMode.Grow)
+                                if(!c.li || c.ignore || c.li.Sizing.y != SizingMode.Grow)
                                     continue;
 
                                 // Log($"line height: {line.crossSize}");
@@ -1593,7 +1607,7 @@ namespace Poke.UI
                         }
                         else {
                             ChildInfo c = _children[line.firstItemIdx];
-                            if(!c.li || CheckIgnoreElem(c) || c.li.Sizing.y != SizingMode.Grow)
+                            if(!c.li || c.ignore || c.li.Sizing.y != SizingMode.Grow)
                                 continue;
 
                             size = leftover * (c.li.flexibleHeight / flexTotal) - c.margins.top - c.margins.bottom;
@@ -1617,7 +1631,7 @@ namespace Poke.UI
                 case LayoutDirection.Column:
                 case LayoutDirection.ColumnReverse:
                     foreach(ChildInfo c in _children) {
-                        if(!c.li || CheckIgnoreElem(c) || c.li.Sizing.y != SizingMode.Grow)
+                        if(!c.li || c.ignore || c.li.Sizing.y != SizingMode.Grow)
                             continue;
                         
                         size = _rect.rect.size.y - m_padding.top - m_padding.bottom - c.margins.top - c.margins.bottom;
@@ -1641,63 +1655,6 @@ namespace Poke.UI
             }
         }
         #endregion
-
-        public void GrowSizingXCallback(float yDiff) {
-            Log($"X Grow Callback ({yDiff})");
-            // remove grow items from calculated content size
-            foreach(ChildInfo c in _children) {
-                if(CheckIgnoreElem(c))
-                    continue;
-
-                if(c.li && c.li.Sizing.y == SizingMode.Grow) {
-                    _contentSize.y -= c.rect.rect.size.y;
-                }
-                else {
-                    c.size.y = c.rect.rect.size.y;
-                }
-            }
-
-            float oldSize = _contentSize.y;
-            float oldHeight = _rect.rect.size.y;
-
-            // recalculate content size
-            switch(m_direction)
-            {
-                case LayoutDirection.Row:
-                case LayoutDirection.RowReverse:
-                    _contentSize.y = 0;
-                    foreach(ChildInfo c in _children) {
-                        if(CheckIgnoreElem(c) || (c.li && c.li.Sizing.y == SizingMode.Grow))
-                            continue;
-
-                        _contentSize.y = Mathf.Max(_contentSize.y, c.size.y);
-                    }
-                    break;
-                case LayoutDirection.Column:
-                case LayoutDirection.ColumnReverse:
-                    _contentSize.y += yDiff;
-                    break;
-            }
-            bool sizeChanged = !Mathf.Approximately(_contentSize.y, oldSize);
-
-            if(m_sizing.y == SizingMode.FitContent && sizeChanged) {
-                _rect.SetSizeWithCurrentAnchors(
-                    RectTransform.Axis.Vertical,
-                    m_padding.top + m_padding.bottom + _contentSize.y
-                );
-            }
-
-            Log($"old content: {oldSize}, old height: {oldHeight}\nnew content: {_contentSize.y}, new height: {_rect.rect.height}");
-            
-            if(_parent)
-                _parent.GrowSizingXCallback(yDiff);
-
-            if(sizeChanged) {
-                Log("forcing vertical layout update from x grow callback");
-                GrowChildrenVertical();
-                VerticalLayout(0, _children.Count-1, _contentSize.y, _contentSize.y, _ignoreCount);
-            }
-        }
         
         public void QueueCacheRefresh() {
             _refreshCache = true;

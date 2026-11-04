@@ -9,7 +9,6 @@
                 <ui:EnumField label="Justify Content" value="Start" type="Poke.UI.Layout+Justification, uLayout" name="JustifyField"/>
                 <ui:EnumField label="Align Content" value="Start" type="Poke.UI.Layout+Alignment, uLayout" name="AlignField"/>
                 <ui:FloatField label="Inner Spacing" value="0" name="InnerSpacingField" enabled="true"/>
-                <ui:Toggle label="Ignore Child Scale" name="IgnoreScaleField"/>
                 <ui:Toggle label="Overflow Wrap" name="WrapField"/>
                 <ui:FloatField label="Line Spacing" value="0" name="LineSpacingField"/>
                 <ui:EnumField label="Align Items" value="Center" type="Poke.UI.Layout+Alignment, uLayout" name="AlignItemsField" tooltip="Alignment of items within their respective lines"/>

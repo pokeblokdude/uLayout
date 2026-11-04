@@ -1,4 +1,36 @@
-﻿## [1.8.1] - 2026-10-22
+﻿## [1.8.2] - ???
+
+### Added
+- Added a menu item for quickly adding a `LayoutItem` with an `Image` component attached (`GameObject > UI (Canvas) > LayoutItem (+ Image)`)
+- Added a special check in `Layout` for a child added with `GameObject > Create Empty`, which triggers `OnTransformChildrenChanged()` *before* Unity replaces its `Transform` component with a `RectTransform`
+
+### Fixed
+- Reverted unintended change from v1.8.0: on a `Layout` with no children, setting an axis to FitContent will shrink to zero (plus any padding).
+  - This is intended behavior &mdash; to prevent an item from fully shrinking, use the `MinWdith` and `MinHeight` parameters (along with `UseMinWidth` and `UseMaxWidth`)
+- Various fixes & improvements to `Layout` behavior when working with plain `RectTransform` children
+- Fixed `Layout` checking `UseMaxWidth` instead of `UseMinWidth` during a wrapped grow pass
+- Fixed `LayoutText` with y sizing set to FitContent having a height of 0 on the first layout rebuild after being enabled
+  - `LayoutText` now calculates its preferred size immediately on enable 
+- @fabianboth - Fixed `LayoutText` using outdated vertical size info
+
+### Changed
+- Moved editor scripts into `Poke.UI.Editor` namespace
+- A `LayoutItem` no `Layout` parent, with sizing set to grow, will stretch to fit using its anchors, rather than setting its size directly
+- `Layout` will skip the positioning pass if it has no children
+- `LayoutText` overrides `TMP_Text.textWrappingMode` when x sizing is set to FitContent
+  - `TextWrappingModes.Normal` when `UseMaxWidth` is set to true
+  - `TextWrappingModes.None` when false
+
+### Removed
+- Removed the 'Ignore Child Scale' parameter &mdash; child scale is now always ignored. There appears to be a bug with `Transform.localScale` reporting incorrect values on the frame it is created
+
+### Known Issues
+- Adding a plain uGUI (`Image`, `Toggle`, `Slider`, etc) child using `GameObject > UI (Canvas) > ...` results in an anchored position of (0, 0) after the initial layout, despite the attached `RectTransform` reading the correct size.
+  - I've dug through the internals of how these menu options instantiate their respective objects, yet have been unable to replicate the behavior programmatically &mdash; it seems to be an unavoidable problem with uGUI's internal logic for creating new objects in the editor.
+  - Subsequent layout passes will position the item correctly (so you can just toggle the item off and on quickly). This also means there should be no issues at runtime.
+  - If it really bothers you, the issue can be avoided entirely by manually creating an object, then adding uGUI components.
+
+## [1.8.1] - 2026-10-22
 
 ### Added
 - Added a public setter for `LayoutItem.Sizing`

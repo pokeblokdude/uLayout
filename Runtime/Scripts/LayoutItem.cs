@@ -114,7 +114,7 @@ namespace Poke.UI
         #endregion
         
         // a plain item has nothing to fit; a Layout fits its children
-        protected virtual bool FitsItsContent => false;
+        protected virtual bool FitOwnContent => false;
         protected virtual string LogPrefix => "LI";
         
         protected RectTransform _rect;
@@ -193,7 +193,7 @@ namespace Poke.UI
         // react to inspector value changes
         protected override void OnValidate() {
             if(!m_ignoreLayout && isActiveAndEnabled) {
-                Log("<color=cyan>inspector values changes</color>");
+                Log("<color=cyan>inspector values changed</color>");
                 SetDirty();
             }
         }
@@ -203,14 +203,6 @@ namespace Poke.UI
         protected override void OnDidApplyAnimationProperties() {
             if(!m_ignoreLayout) {
                 Log("<color=cyan>animation properties applied</color>");
-                SetDirty();
-            }
-        }
-
-        // react if rect changes size (excluding during a layout rebuild)
-        protected override void OnRectTransformDimensionsChange() {
-            if(!m_ignoreLayout && !CanvasUpdateRegistry.IsRebuildingLayout()) {
-                Log("<color=cyan>rect size changed</color>");
                 SetDirty();
             }
         }
@@ -225,9 +217,9 @@ namespace Poke.UI
             _tracker.Clear();
             _trackerProps = DrivenTransformProperties.None;
             
-            if((m_sizing.x == SizingMode.FitContent && FitsItsContent) || m_sizing.x == SizingMode.Grow)
+            if((m_sizing.x == SizingMode.FitContent && FitOwnContent) || m_sizing.x == SizingMode.Grow)
                 _trackerProps |= DrivenTransformProperties.SizeDeltaX;
-            if((m_sizing.y == SizingMode.FitContent && FitsItsContent) || m_sizing.y == SizingMode.Grow)
+            if((m_sizing.y == SizingMode.FitContent && FitOwnContent) || m_sizing.y == SizingMode.Grow)
                 _trackerProps |= DrivenTransformProperties.SizeDeltaY;
 
             if(_parent && !m_ignoreLayout) 
@@ -252,11 +244,9 @@ namespace Poke.UI
             // Do grow sizing here if parent is not a Layout
             if(!_parent && _parentRect && m_sizing.x == SizingMode.Grow) {
                 Log("grow horizontal (non-layout)");
-                float parentSize = _parentRect.rect.size.x;
-                _rect.anchorMin = _rect.anchorMin.SetX(0.5f);
-                _rect.anchorMax = _rect.anchorMax.SetX(0.5f);
-                _rect.anchoredPosition = _rect.anchoredPosition.SetX(Mathf.LerpUnclamped(-parentSize/2, parentSize/2, _rect.pivot.x));
-                _rect.SetSizeWithCurrentAnchors(RectTransform.Axis.Horizontal, _parentRect.rect.size.x);
+                _rect.anchorMin = _rect.anchorMin.SetX(0);
+                _rect.anchorMax = _rect.anchorMax.SetX(1);
+                _rect.sizeDelta = _rect.sizeDelta.SetX(0);
             }
         }
 
@@ -267,11 +257,9 @@ namespace Poke.UI
             // Do grow sizing here if parent is not a Layout
             if(!_parent && _parentRect && m_sizing.y == SizingMode.Grow) {
                 Log("grow vertical (non-layout)");
-                float parentSize = _parentRect.rect.size.y;
-                _rect.anchorMin = _rect.anchorMin.SetY(0.5f);
-                _rect.anchorMax = _rect.anchorMax.SetY(0.5f);
-                _rect.anchoredPosition = _rect.anchoredPosition.SetY(Mathf.LerpUnclamped(-parentSize/2, parentSize/2, _rect.pivot.y));
-                _rect.SetSizeWithCurrentAnchors(RectTransform.Axis.Vertical, _parentRect.rect.size.y);
+                _rect.anchorMin = _rect.anchorMin.SetY(0);
+                _rect.anchorMax = _rect.anchorMax.SetY(1);
+                _rect.sizeDelta = _rect.sizeDelta.SetY(0);
             }
 
             _refresh++;

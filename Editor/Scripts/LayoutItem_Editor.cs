@@ -16,13 +16,13 @@ using UnityEditor.UIElements;
 using UnityEngine;
 using UnityEngine.UIElements;
 
-namespace Poke.UI
+namespace Poke.UI.Editor
 {
     [
         CustomEditor(typeof(LayoutItem)),
         CanEditMultipleObjects
     ]
-    public class LayoutItem_Editor : Editor
+    public class LayoutItem_Editor : UnityEditor.Editor
     {
         private LayoutItem _item;
 

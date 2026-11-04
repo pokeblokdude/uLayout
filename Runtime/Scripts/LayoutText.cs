@@ -26,7 +26,7 @@ namespace Poke.UI
         private TMP_Text _text;
         private Vector2 _preferredSize;
 
-        protected override bool FitsItsContent => true;
+        protected override bool FitOwnContent => true;
         protected override string LogPrefix => "LT";
 
         protected override void Awake() {
@@ -37,6 +37,12 @@ namespace Poke.UI
         protected override void OnEnable() {
             _text.RegisterDirtyLayoutCallback(TextDirty);
             _text.ForceMeshUpdate(true, true);
+            
+            _preferredSize = _text.GetPreferredValues();
+            if(m_sizing.x == SizingMode.FitContent) FitTextHorizontal();
+            _preferredSize = _text.GetPreferredValues();
+            if(m_sizing.y == SizingMode.FitContent) FitTextVertical();
+            
             base.OnEnable();
         }
 
@@ -52,43 +58,41 @@ namespace Poke.UI
             }
         }
 
-        public void HandleGrowSizingX() {
-            if(m_sizing.y == SizingMode.FitContent) {
-                _preferredSize = _text.GetPreferredValues();
-                _text.ForceMeshUpdate();
-                Log($"resizing y based on x growth ({_preferredSize.y})");
+        private void FitTextHorizontal() {
+            _text.textWrappingMode = m_useMaxWidth ? TextWrappingModes.Normal : TextWrappingModes.NoWrap;
                 
-                float size = _preferredSize.y;
-                if(m_useMaxHeight) size = Mathf.Min(m_maxHeight, size);
-                if(m_useMinHeight) size = Mathf.Max(m_minHeight, size);
-                _rect.SetSizeWithCurrentAnchors(RectTransform.Axis.Vertical, size);
-            }
+            float size = _preferredSize.x;
+            if(m_useMaxWidth) size = Mathf.Min(m_maxWidth, size);
+            if(m_useMinWidth) size = Mathf.Max(m_minWidth, size);
+            Log($"fit text horizontal: {size}");
+            _rect.SetSizeWithCurrentAnchors(RectTransform.Axis.Horizontal, size);
         }
 
+        private void FitTextVertical() {
+            float size = _preferredSize.y;
+            if(m_useMaxHeight) size = Mathf.Min(m_maxHeight, size);
+            if(m_useMinHeight) size = Mathf.Max(m_minHeight, size);
+            Log($"fit text vertical: {size}");
+            _rect.SetSizeWithCurrentAnchors(RectTransform.Axis.Vertical, size);
+        }
+        
         public override void CalculateLayoutInputHorizontal() {
             base.CalculateLayoutInputHorizontal();
-
-            if(m_sizing.x == SizingMode.FitContent && !m_useMaxWidth) {
-                _text.textWrappingMode = TextWrappingModes.NoWrap;
-            }
             
             _preferredSize = _text.GetPreferredValues();
             Log($"text size: {_preferredSize}");
                 
             if(m_sizing.x == SizingMode.FitContent) {
-                float size = _preferredSize.x;
-                if(m_useMaxWidth) size = Mathf.Min(m_maxWidth, size);
-                if(m_useMinWidth) size = Mathf.Max(m_minWidth, size);
-                Log($"fit text horizontal: {size}");
-                _rect.SetSizeWithCurrentAnchors(RectTransform.Axis.Horizontal, size);
+                FitTextHorizontal();
             }
+        }
+
+        public override void CalculateLayoutInputVertical() {
+            base.CalculateLayoutInputVertical();
             
+            _preferredSize = _text.GetPreferredValues();
             if(m_sizing.y == SizingMode.FitContent) {
-                float size = _preferredSize.y;
-                if(m_useMaxHeight) size = Mathf.Min(m_maxHeight, size);
-                if(m_useMinHeight) size = Mathf.Max(m_minHeight, size);
-                Log($"fit text vertical: {size}");
-                _rect.SetSizeWithCurrentAnchors(RectTransform.Axis.Vertical, size);
+                FitTextVertical();
             }
         }
 

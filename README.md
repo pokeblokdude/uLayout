@@ -2,7 +2,7 @@
 
 **uLayout** is simple UI layout system designed as a drop-in replacement for Unity's `VerticalLayoutGroup` and `HorizontalLayoutGroup`, implementing a core subset of the *flexbox* spec from CSS. The system operates purely on `RectTransform`s, meaning full compatibility with native uGUI components like `Image`, `RectMask2D`, etc.
 
-It's designed with performance in mind&mdash;the system only triggers an update when resize events occur, and only the `Layout` objects which had a child resize are updated. The demo scene costs ~0.9ms in a standalone build on my machine (Core Ultra 7 265KF), most of which is TMP_Text updates.
+It's designed with performance in mind&mdash;the system only triggers an update when resize events occur, and only the `Layout` objects which had a child resize are updated. The demo scene costs ~1.2ms in a standalone build on my machine (Core Ultra 7 265KF), most of which is TMP_Text updates.
 
 ---
 
