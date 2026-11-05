@@ -1564,7 +1564,7 @@ namespace Poke.UI
 
                             float size = leftover * (c.li.flexibleWidth / flexTotal) - c.margins.left - c.margins.right;
                             if(c.li.UseMaxWidth) size = Mathf.Min(c.li.preferredWidth, size);
-                            if(c.li.UseMaxWidth) size = Mathf.Max(c.li.minWidth, size);
+                            if(c.li.UseMinWidth) size = Mathf.Max(c.li.minWidth, size);
                             
                             line.crossSize = size + c.margins.left + c.margins.right;
                             _lines[l] = line;

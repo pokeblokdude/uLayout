@@ -1,5 +1,9 @@
 ﻿## [1.8.3] - ???
 
+### Fixed
+- Fixed plain uGUI elements added via `GameObject > UI (Canvas) > ...` having a position of (0, 0) after the first layout pass (editor-only)
+- @fabianboth - Fixed another case of checking `UseMaxWidth` instead of `UseMinWidth`
+
 ## [1.8.2] - 2026-11-03
 
 ### Added
