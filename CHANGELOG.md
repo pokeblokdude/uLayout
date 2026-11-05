@@ -1,4 +1,6 @@
-﻿## [1.8.2] - ???
+﻿## [1.8.3] - ???
+
+## [1.8.2] - 2026-11-03
 
 ### Added
 - Added a menu item for quickly adding a `LayoutItem` with an `Image` component attached (`GameObject > UI (Canvas) > LayoutItem (+ Image)`)
