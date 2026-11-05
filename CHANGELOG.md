@@ -2,6 +2,7 @@
 
 ### Fixed
 - Fixed plain uGUI elements added via `GameObject > UI (Canvas) > ...` having a position of (0, 0) after the first layout pass (editor-only)
+- `Layout` skips line packing if all children are disabled/ignored
 - Fixed wrapped `Layout` adding an empty line with an out of range start/end index in some cases
 - Fixed wrapped `Layout` breaking lines with an inner-spacing gap, instead of flush with the last child
 - Fixed `Layout` vertical pass running multiple times in some cases
