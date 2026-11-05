@@ -125,7 +125,8 @@ namespace Poke.UI
         private Canvas _canvas;
         private RectTransform _parentRect;
         private DrivenTransformProperties _trackerProps;
-        protected int _refresh;
+        private bool _refreshedH;
+        private bool _refreshedV;
 
 		private Canvas Canvas => _canvas ? _canvas : _canvas = GetComponentInParent<Canvas>();
 
@@ -185,8 +186,9 @@ namespace Poke.UI
             if(_parent) _parent.QueueCacheRefresh();
         }
 
-        protected void PreLayout() {
-            _refresh = 0;
+        protected virtual void PreLayout() {
+            _refreshedH = false;
+            _refreshedV = false;
         }
 
 #if UNITY_EDITOR
@@ -235,7 +237,7 @@ namespace Poke.UI
 
         #region ILayoutElement
         public virtual void CalculateLayoutInputHorizontal() {
-            if(_refresh > 0) return;
+            if(_refreshedH) return;
             
             Log("<color=green>CalculateLayoutInputHorizontal</color>");
 #if UNITY_EDITOR
@@ -248,10 +250,12 @@ namespace Poke.UI
                 _rect.anchorMax = _rect.anchorMax.SetX(1);
                 _rect.sizeDelta = _rect.sizeDelta.SetX(0);
             }
+
+            _refreshedH = true;
         }
 
         public virtual void CalculateLayoutInputVertical() {
-            if(_refresh > 0) return;
+            if(_refreshedV) return;
             
             Log("<color=green>CalculateLayoutInputVertical</color>");
             // Do grow sizing here if parent is not a Layout
@@ -262,7 +266,7 @@ namespace Poke.UI
                 _rect.sizeDelta = _rect.sizeDelta.SetY(0);
             }
 
-            _refresh++;
+            _refreshedV = true;
         }
         #endregion
         

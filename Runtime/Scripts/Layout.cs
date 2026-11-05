@@ -123,6 +123,7 @@ namespace Poke.UI
         private readonly List<LineInfo>     _lines = new();
         private bool                        _precalcYSize;
         private bool                        _refreshCache;
+        private bool                        _refreshedH, _refreshedV;
         
         #region TypeDef
         public enum Justification
@@ -163,7 +164,7 @@ namespace Poke.UI
         private struct LineInfo
         {
             public int firstItemIdx;      // first child index in _children for this line (inclusive)
-            public int lastItemIdx;       // exclusive
+            public int lastItemIdx;       // last child index in _children for this line (inclusive)
             public int itemCount;
             public int ignoreCount;
             public float primarySize;      // sum of non-grow primary sizes + innerSpacing * (count-1)
@@ -201,7 +202,7 @@ namespace Poke.UI
         // react if rect changes size (excluding during a layout rebuild)
         protected override void OnRectTransformDimensionsChange() {
             // for some reason this event is still invoked even if the object is disabled
-            if(gameObject.activeSelf && enabled && !CanvasUpdateRegistry.IsRebuildingLayout()) {
+            if(isActiveAndEnabled && !CanvasUpdateRegistry.IsRebuildingLayout()) {
                 Log("<color=cyan>rect size changed</color>");
                 SetDirty();
             }
@@ -216,10 +217,16 @@ namespace Poke.UI
         }
         #endregion
 
+        protected override void PreLayout() {
+            base.PreLayout();
+            _refreshedH = false;
+            _refreshedV = false;
+        }
+        
         #region ILayoutGroup
         public override void CalculateLayoutInputHorizontal() {
             base.CalculateLayoutInputHorizontal();
-            if(_refresh > 0) return;
+            if(_refreshedH) return;
             
             if(_refreshCache) {
                 RefreshChildCache();
@@ -232,6 +239,7 @@ namespace Poke.UI
             _ignoreCount = 0;
             _innerSize = Vector2.zero;
             _precalcYSize = false;
+            _lines.Clear();
             
             Log("<color=white>Reading child info</color>");
             foreach(ChildInfo c in _children) {
@@ -243,7 +251,7 @@ namespace Poke.UI
             
             Log("<color=white>Calculating horizontal content size</color>");
             if(_children.Count > 0) {
-                float primarySize = m_justifyContent == Justification.SpaceBetween ? 0 : m_innerSpacing * (_children.Count - _ignoreCount - 1);
+                float primarySize = m_justifyContent == Justification.SpaceBetween ? 0 : m_innerSpacing * Mathf.Max(0, _children.Count - _ignoreCount - 1);
                 float crossSize = 0;
 
                 // calculate content size
@@ -314,14 +322,14 @@ namespace Poke.UI
             _innerSize.x = _rect.rect.size.x - m_padding.left - m_padding.right;
             Log($"calculated rect x size: {_rect.rect.size.x:f3}, inner: {_innerSize.x}");
 
-            if(IsRowDirection() && m_wrap && _contentSize.x > _innerSize.x) {
+            if(IsRowDirection() && m_wrap && _contentSize.x > _innerSize.x && _ignoreCount < _children.Count) {
                 PackLines();
             }
         }
 
         public override void CalculateLayoutInputVertical() {
             base.CalculateLayoutInputVertical();
-            if(_refresh-1 > 0) return;
+            if(_refreshedV) return;
 
             // check for any size changes that happened due to layout calculations deeper in the hierarchy
             foreach(ChildInfo c in _children) {
@@ -332,7 +340,7 @@ namespace Poke.UI
             
             Log("<color=white>Calculating vertical content size</color>");
             if(_children.Count > 0 && !_precalcYSize) {
-                float primarySize = m_justifyContent == Justification.SpaceBetween ? 0 : m_innerSpacing * (_children.Count - _ignoreCount - 1);
+                float primarySize = m_justifyContent == Justification.SpaceBetween ? 0 : m_innerSpacing * Mathf.Max(0, _children.Count - _ignoreCount - 1);
                 float crossSize = 0;
 
                 // calculate content size
@@ -404,13 +412,13 @@ namespace Poke.UI
 
             _innerSize.y = _rect.rect.size.y - m_padding.top - m_padding.bottom;
 
-            if(!IsRowDirection() && m_wrap && _contentSize.y > _innerSize.y) {
+            if(!IsRowDirection() && m_wrap && _contentSize.y > _innerSize.y && _ignoreCount < _children.Count) {
                 PackColumns();
             }
         }
 
         public void SetLayoutHorizontal() {
-            if(_refresh > 0 || _children.Count == 0) return;
+            if(_refreshedH || _children.Count == 0) return;
             Log("<color=green>SetLayoutHorizontal</color>");
             
             if(m_wrap && _lines.Count > 0) {
@@ -420,17 +428,22 @@ namespace Poke.UI
                         HorizontalLayout(line.firstItemIdx, line.lastItemIdx, line.crossSize, line.primarySize, line.ignoreCount);
                     }
                 }
-                // else: deffer horizontal layout -
+                // else: defer horizontal layout -
                 // vertical wrap requires calculating vertical sizes BEFORE horizontal layout
+                else {
+                    Log("vertical wrap enabled - deferring horizontal layout");
+                }
             }
             else {
                 GrowChildrenHorizontal();
                 HorizontalLayout(0, _children.Count-1, _contentSize.x, _contentSize.x, _ignoreCount);
             }
+
+            _refreshedH = true;
         }
 
         public void SetLayoutVertical() {
-            if(_refresh-1 > 0 || _children.Count == 0) return;
+            if(_refreshedV || _children.Count == 0) return;
             Log("<color=green>SetLayoutVertical</color>");
             
             if(m_wrap && _lines.Count > 0) {
@@ -462,6 +475,7 @@ namespace Poke.UI
             }
 
             OnLayoutChanged?.Invoke();
+            _refreshedV = true;
         }
         #endregion
 
@@ -527,7 +541,7 @@ namespace Poke.UI
             // DefaultControls.CreateImage) -- these all result in a correct layout position.
             // It's a bit of a bandaid fix, but I think the added pass is worth it to give users the sense that everything Just Works(tm)
             foreach(ChildInfo c in _children) {
-                if(!c.li) {
+                if(!c.li && c.gameObject.activeSelf) {
                     StartCoroutine(DelayedMultiPass());
                     break;
                 }
@@ -1215,13 +1229,12 @@ namespace Poke.UI
         }
         
         private void PackLines() {
-            _lines.Clear();
-
+            Log("<color=white>Splitting items into lines</color>");
+            
             LineInfo line = new LineInfo { firstItemIdx = 0 };
             
             float cursor = 0;
             int lineIndex = 0;
-            bool newLine = true;
             
             foreach(ChildInfo c in _children) {
                 if(c.ignore) {
@@ -1265,10 +1278,15 @@ namespace Poke.UI
                 float childH = c.size.x + c.margins.left + c.margins.right;
                 float childV = crossGrow ? 0 : c.size.y + c.margins.top + c.margins.bottom;
                 
-                float candidate = childH + 
-                                  (newLine || c.index == _children.Count-1 || m_justifyContent == Justification.SpaceBetween ? 0 : m_innerSpacing);
+                float spacing = m_justifyContent == Justification.SpaceBetween ? 0 : m_innerSpacing;
 
-                if(cursor + candidate > _innerSize.x) {
+                if(line.itemCount > 0) {
+                    cursor += spacing;
+                    line.primarySize += spacing;
+                }
+                
+                // line needs to break
+                if(cursor + childH > _innerSize.x) {
                     // this element is the first item AND too big
                     if(line.firstItemIdx == c.index) {
                         line.itemCount = 1;
@@ -1280,44 +1298,44 @@ namespace Poke.UI
                         lineIndex++;
                         line = new LineInfo { firstItemIdx = c.index+1 };
                         cursor = 0;
-                        newLine = true;
                     }
-                    // this element runs off the end of the line normally
+                    // this element runs off the end of the line normally -- move to new line and close current line
                     else {
-                        if(lineIndex != 0 && m_justifyContent != Justification.SpaceBetween) line.primarySize -= m_innerSpacing;
+                        line.primarySize -= spacing;
                         _lines.Add(line);
                         lineIndex++;
+                        
                         line = new LineInfo {
                             firstItemIdx = c.index,
                             lastItemIdx = c.index,
                             itemCount = 1,
-                            primarySize = candidate,
+                            primarySize = childH,
                             crossSize = childV
                         };
                         c.lineIndex = lineIndex;
-                        cursor = candidate;
-                        newLine = false;
+                        cursor = childH;
                     }
                 }
+                // element can be placed in the line normally
                 else {
                     c.lineIndex = lineIndex;
                     line.lastItemIdx = c.index;
-                    line.primarySize += candidate;
+                    line.primarySize += childH;
                     line.crossSize = Mathf.Max(line.crossSize, childV);
                     line.itemCount++;
-                    cursor += candidate;
-                    newLine = false;
+                    cursor += childH;
                 }
             }
             
-            _lines.Add(line);
+            if(line.itemCount > 0)
+                _lines.Add(line);
 
             Log($"packed {_lines.Count} lines");
             int index = 0;
-            // foreach(LineInfo l in _lines) {
-            //     Log($"line {index}: {l.itemCount} items - {l.primarySize}, {l.crossSize}");
-            //     index++;
-            // }
+            foreach(LineInfo l in _lines) {
+                Log($"line {index}: {l.itemCount} items - {l.primarySize}, {l.crossSize}");
+                index++;
+            }
             
             
             float maxLineSize = 0;
@@ -1350,13 +1368,12 @@ namespace Poke.UI
         }
 
         private void PackColumns() {
-            _lines.Clear();
-
+            Log("<color=white>Splitting items into columns</color>");
+            
             LineInfo line = new LineInfo { firstItemIdx = 0 };
             
             float cursor = 0;
             int lineIndex = 0;
-            bool newLine = true;
             
             foreach(ChildInfo c in _children) {
                 if(c.ignore) {
@@ -1400,10 +1417,15 @@ namespace Poke.UI
                 float childH = crossGrow ? 0 : c.size.x + c.margins.left + c.margins.right;
                 float childV = c.size.y + c.margins.top + c.margins.bottom;
                 
-                float candidate = childV + 
-                                  (newLine || c.index == _children.Count-1 || m_justifyContent == Justification.SpaceBetween ? 0 : m_innerSpacing);
+                float spacing = line.itemCount == 0 || m_justifyContent == Justification.SpaceBetween ? 0 : m_innerSpacing;
 
-                if(cursor + candidate > _innerSize.y) {
+                if(line.itemCount > 0) {
+                    cursor += spacing;
+                    line.primarySize += spacing;
+                }
+                
+                // column needs to break
+                if(cursor + childV > _innerSize.y) {
                     // this element is the first item AND too big
                     if(line.firstItemIdx == c.index) {
                         line.itemCount = 1;
@@ -1415,44 +1437,43 @@ namespace Poke.UI
                         lineIndex++;
                         line = new LineInfo { firstItemIdx = c.index+1 };
                         cursor = 0;
-                        newLine = true;
                     }
                     // this element runs off the end of the line normally
                     else {
-                        if(lineIndex != 0 && m_justifyContent != Justification.SpaceBetween) line.primarySize -= m_innerSpacing;
+                        line.primarySize -= spacing;
                         _lines.Add(line);
                         lineIndex++;
                         line = new LineInfo {
                             firstItemIdx = c.index,
                             lastItemIdx = c.index,
                             itemCount = 1,
-                            primarySize = candidate,
+                            primarySize = childV,
                             crossSize = childH
                         };
                         c.lineIndex = lineIndex;
-                        cursor = candidate;
-                        newLine = false;
+                        cursor = childV;
                     }
                 }
+                // element can be added to the column normally
                 else {
                     c.lineIndex = lineIndex;
                     line.lastItemIdx = c.index;
-                    line.primarySize += candidate;
+                    line.primarySize += childV;
                     line.crossSize = Mathf.Max(line.crossSize, childH);
                     line.itemCount++;
-                    cursor += candidate;
-                    newLine = false;
+                    cursor += childV;
                 }
             }
             
-            _lines.Add(line);
+            if(line.itemCount > 0)
+                _lines.Add(line);
 
             Log($"packed {_lines.Count} columns");
             int index = 0;
-            // foreach(LineInfo l in _lines) {
-            //     Log($"line {index}: {l.itemCount} items - {l.primarySize}, {l.crossSize}");
-            //     index++;
-            // }
+            foreach(LineInfo l in _lines) {
+                Log($"line {index}: {l.itemCount} items - {l.primarySize}, {l.crossSize}");
+                index++;
+            }
             
             float maxLineSize = 0;
             foreach(LineInfo l in _lines) {

@@ -2,7 +2,10 @@
 
 ### Fixed
 - Fixed plain uGUI elements added via `GameObject > UI (Canvas) > ...` having a position of (0, 0) after the first layout pass (editor-only)
-- @fabianboth - Fixed another case of checking `UseMaxWidth` instead of `UseMinWidth`
+- Fixed wrapped `Layout` adding an empty line with an out of range start/end index in some cases
+- Fixed wrapped `Layout` breaking lines with an inner-spacing gap, instead of flush with the last child
+- Fixed `Layout` vertical pass running multiple times in some cases
+- @fabianboth - Fixed more cases of checking `UseMaxWidth` instead of `UseMinWidth`
 
 ## [1.8.2] - 2026-11-03
 
