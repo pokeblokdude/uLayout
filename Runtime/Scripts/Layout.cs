@@ -12,6 +12,7 @@
     copies or substantial portions of the Software.
 */
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
@@ -495,7 +496,7 @@ namespace Poke.UI
         private void RefreshChildCache() {
             _children.Clear();
             _lines.Clear();
-
+            
             int childCount = transform.childCount;
             Log($"<color=white>Refreshing child cache</color> - {childCount} children detected");
 
@@ -517,7 +518,31 @@ namespace Poke.UI
                 
                 _children.Add(c);
             }
+
+#if UNITY_EDITOR
+            // Special editor-only case to handle adding plain uGUI components (Image, Toggle, Slider, etc) via the GameObject menu.
+            // For some reason these objects have some sort of delayed instantiation, which results in them being positioned at (0, 0),
+            // despite their RectTransform components having the correct size and everything... very, very strange.
+            // Also, the behavior is impossible to replicate using custom instantiation (new GameObject(), ObjectFactory.CreateGameObject(),
+            // DefaultControls.CreateImage) -- these all result in a correct layout position.
+            // It's a bit of a bandaid fix, but I think the added pass is worth it to give users the sense that everything Just Works(tm)
+            foreach(ChildInfo c in _children) {
+                if(!c.li) {
+                    StartCoroutine(DelayedMultiPass());
+                    break;
+                }
+            }
+#endif
         }
+
+#if UNITY_EDITOR
+        // see comment above
+        private IEnumerator DelayedMultiPass() {
+            yield return null;
+            Log("<color=cyan>Editor Deferred Pass</color>");
+            SetDirty();
+        }
+#endif
 
         private bool IsRowDirection() {
             return m_direction == LayoutDirection.Row || m_direction == LayoutDirection.RowReverse;
