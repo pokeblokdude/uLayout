@@ -123,7 +123,7 @@ namespace Poke.UI
         private readonly List<LineInfo>     _lines = new();
         private bool                        _precalcYSize;
         private bool                        _refreshCache;
-        private bool                        _refreshedH, _refreshedV;
+        private bool                        _refreshedHrz, _refreshedVrt;
         
         #region TypeDef
         public enum Justification
@@ -219,14 +219,14 @@ namespace Poke.UI
 
         protected override void PreLayout() {
             base.PreLayout();
-            _refreshedH = false;
-            _refreshedV = false;
+            _refreshedHrz = false;
+            _refreshedVrt = false;
         }
         
         #region ILayoutGroup
         public override void CalculateLayoutInputHorizontal() {
             base.CalculateLayoutInputHorizontal();
-            if(_refreshedH) return;
+            if(_refreshedHrz) return;
             
             if(_refreshCache) {
                 RefreshChildCache();
@@ -329,7 +329,7 @@ namespace Poke.UI
 
         public override void CalculateLayoutInputVertical() {
             base.CalculateLayoutInputVertical();
-            if(_refreshedV) return;
+            if(_refreshedVrt) return;
 
             // check for any size changes that happened due to layout calculations deeper in the hierarchy
             foreach(ChildInfo c in _children) {
@@ -418,7 +418,7 @@ namespace Poke.UI
         }
 
         public void SetLayoutHorizontal() {
-            if(_refreshedH || _children.Count == 0) return;
+            if(_refreshedHrz || _children.Count == 0) return;
             Log("<color=green>SetLayoutHorizontal</color>");
             
             if(m_wrap && _lines.Count > 0) {
@@ -439,11 +439,11 @@ namespace Poke.UI
                 HorizontalLayout(0, _children.Count-1, _contentSize.x, _contentSize.x, _ignoreCount);
             }
 
-            _refreshedH = true;
+            _refreshedHrz = true;
         }
 
         public void SetLayoutVertical() {
-            if(_refreshedV || _children.Count == 0) return;
+            if(_refreshedVrt || _children.Count == 0) return;
             Log("<color=green>SetLayoutVertical</color>");
             
             if(m_wrap && _lines.Count > 0) {
@@ -475,7 +475,7 @@ namespace Poke.UI
             }
 
             OnLayoutChanged?.Invoke();
-            _refreshedV = true;
+            _refreshedVrt = true;
         }
         #endregion
 
